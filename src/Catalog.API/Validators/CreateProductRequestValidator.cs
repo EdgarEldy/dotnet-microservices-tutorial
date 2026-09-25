@@ -13,7 +13,11 @@ public sealed class CreateProductRequestValidator : AbstractValidator<CreateProd
     public CreateProductRequestValidator()
     {
         RuleFor(r => r.CategoryId).GreaterThan(0);
-        RuleFor(r => r.ProductName).NotEmpty().MaximumLength(CatalogLimits.ProductNameMaxLength);
+        // Length measured after Trim, on the value ProductService actually stores.
+        RuleFor(r => r.ProductName)
+            .NotEmpty()
+            .Must(name => name.Trim().Length <= CatalogLimits.ProductNameMaxLength)
+            .WithMessage($"{{PropertyName}} must be {CatalogLimits.ProductNameMaxLength} characters or fewer.");
         RuleFor(r => r.UnitPrice)
             .GreaterThan(0)
             .PrecisionScale(CatalogLimits.UnitPricePrecision, CatalogLimits.UnitPriceScale, ignoreTrailingZeros: true);

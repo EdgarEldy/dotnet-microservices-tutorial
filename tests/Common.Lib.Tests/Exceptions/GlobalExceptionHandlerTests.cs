@@ -3,6 +3,7 @@ using Common.Lib.Exceptions;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
@@ -45,6 +46,7 @@ public sealed class GlobalExceptionHandlerTests : IDisposable
         AssertProblemJsonContentType(context);
         Assert.Equal(400, body.GetProperty("status").GetInt32());
         Assert.Equal("One or more validation errors occurred.", body.GetProperty("title").GetString());
+        Assert.False(body.TryGetProperty("detail", out _));
 
         var errors = body.GetProperty("errors");
         Assert.Equal(2, errors.EnumerateObject().Count());
@@ -73,16 +75,88 @@ public sealed class GlobalExceptionHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task TryHandleAsync_ShouldReturn400WithEmptyErrors_WhenValidationExceptionHasNoFailures()
+    public async Task TryHandleAsync_ShouldReturn400WithMessageAsDetail_WhenValidationExceptionHasNoFailures()
     {
-        var exception = new ValidationException("Validation failed.");
+        var exception = new ValidationException("The order must contain at least one line.");
 
         var (handled, context, body) = await HandleAsync(exception);
 
         Assert.True(handled);
         Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
         AssertProblemJsonContentType(context);
+        Assert.Equal(400, body.GetProperty("status").GetInt32());
+        Assert.Equal("The order must contain at least one line.", body.GetProperty("detail").GetString());
         Assert.Empty(body.GetProperty("errors").EnumerateObject());
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldGroupUnderEmptyKey_WhenValidationFailureHasNullPropertyName()
+    {
+        var exception = new ValidationException(
+        [
+            new ValidationFailure(null!, "Start date must be before end date."),
+            new ValidationFailure(string.Empty, "At least one filter is required."),
+            new ValidationFailure("Name", "Name is required."),
+        ]);
+
+        var (handled, context, body) = await HandleAsync(exception);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        var errors = body.GetProperty("errors");
+        Assert.Equal(2, errors.EnumerateObject().Count());
+        Assert.Equal(
+            ["Start date must be before end date.", "At least one filter is required."],
+            errors.GetProperty(string.Empty).EnumerateArray().Select(e => e.GetString()).ToArray());
+        Assert.Equal(
+            ["Name is required."],
+            errors.GetProperty("Name").EnumerateArray().Select(e => e.GetString()).ToArray());
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldReturnProblemDetailsWith413_WhenBadHttpRequestExceptionIsPayloadTooLarge()
+    {
+        var exception = new BadHttpRequestException("Request body too large.", StatusCodes.Status413PayloadTooLarge);
+
+        var (handled, context, body) = await HandleAsync(exception);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, context.Response.StatusCode);
+        AssertProblemJsonContentType(context);
+        Assert.Equal(413, body.GetProperty("status").GetInt32());
+        var expectedTitle = ReasonPhrases.GetReasonPhrase(StatusCodes.Status413PayloadTooLarge);
+        Assert.False(string.IsNullOrWhiteSpace(expectedTitle));
+        Assert.Equal(expectedTitle, body.GetProperty("title").GetString());
+        Assert.Equal("Request body too large.", body.GetProperty("detail").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("traceId").GetString()));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldReturnProblemDetailsWith400_WhenBadHttpRequestExceptionHasDefaultStatus()
+    {
+        var exception = new BadHttpRequestException("Malformed request body.");
+
+        var (handled, context, body) = await HandleAsync(exception);
+
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        AssertProblemJsonContentType(context);
+        Assert.Equal(400, body.GetProperty("status").GetInt32());
+        Assert.Equal("Bad Request", body.GetProperty("title").GetString());
+        Assert.Equal("Malformed request body.", body.GetProperty("detail").GetString());
+        Assert.False(body.TryGetProperty("errors", out _));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldReturnProblemDetailsWith408_WhenBadHttpRequestExceptionIsRequestTimeout()
+    {
+        var exception = new BadHttpRequestException("Reading the request body timed out.", StatusCodes.Status408RequestTimeout);
+
+        var (_, context, body) = await HandleAsync(exception);
+
+        Assert.Equal(StatusCodes.Status408RequestTimeout, context.Response.StatusCode);
+        Assert.Equal(ReasonPhrases.GetReasonPhrase(StatusCodes.Status408RequestTimeout), body.GetProperty("title").GetString());
+        Assert.Equal("Reading the request body timed out.", body.GetProperty("detail").GetString());
     }
 
     [Fact]
@@ -151,6 +225,7 @@ public sealed class GlobalExceptionHandlerTests : IDisposable
     [InlineData("validation")]
     [InlineData("not-found")]
     [InlineData("business-rule")]
+    [InlineData("bad-request")]
     [InlineData("unexpected")]
     public async Task TryHandleAsync_ShouldIncludeTraceIdExtension_WhenAnyExceptionIsHandled(string kind)
     {
@@ -177,6 +252,7 @@ public sealed class GlobalExceptionHandlerTests : IDisposable
     [InlineData("validation")]
     [InlineData("not-found")]
     [InlineData("business-rule")]
+    [InlineData("bad-request")]
     public async Task TryHandleAsync_ShouldLogWarning_WhenClientErrorExceptionIsThrown(string kind)
     {
         await HandleAsync(CreateException(kind));
@@ -227,6 +303,7 @@ public sealed class GlobalExceptionHandlerTests : IDisposable
         "validation" => new ValidationException([new ValidationFailure("Name", "Name is required.")]),
         "not-found" => new ResourceNotFoundException("Product", 1),
         "business-rule" => new BusinessRuleException("rule violated"),
+        "bad-request" => new BadHttpRequestException("Request body too large.", StatusCodes.Status413PayloadTooLarge),
         "unexpected" => new InvalidOperationException("boom"),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };

@@ -494,12 +494,12 @@ First branch, since every service below depends on it.
 
 ### Tasks
 
-- [ ] `ResourceNotFoundException`, `BusinessRuleException`, `GlobalExceptionHandler` (`IExceptionHandler`, mapping to `ProblemDetails`/`ValidationProblemDetails`)
-- [ ] `PageResponse<T>` header-building helper
-- [ ] Referenced as a regular project reference (`<ProjectReference>`) by every service, never copy-pasted
-- [ ] Unit tests for `GlobalExceptionHandler`'s mapping of each exception type
-- [ ] `.github/workflows/ci-common-lib.yml`, and every other service's CI job depends on this one succeeding first (since they all compile against it)
-- [ ] `.github/PULL_REQUEST_TEMPLATE.md`: repo-wide, used by every `feature/*` branch's PR from here on
+- [x] `ResourceNotFoundException`, `BusinessRuleException`, `GlobalExceptionHandler` (`IExceptionHandler`, mapping to `ProblemDetails`/`ValidationProblemDetails`)
+- [x] `PageResponse<T>` header-building helper
+- [x] Referenced as a regular project reference (`<ProjectReference>`) by every service, never copy-pasted
+- [x] Unit tests for `GlobalExceptionHandler`'s mapping of each exception type
+- [x] `.github/workflows/ci-common-lib.yml`, and every other service's CI job depends on this one succeeding first (since they all compile against it)
+- [x] `.github/PULL_REQUEST_TEMPLATE.md`: repo-wide, used by every `feature/*` branch's PR from here on
 
 ## feature/infrastructure
 

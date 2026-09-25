@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Common.Lib\Common.Lib.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

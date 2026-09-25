@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 
 namespace Common.Lib.Exceptions;
@@ -27,6 +28,10 @@ public sealed class GlobalExceptionHandler(
                 StatusCodes.Status404NotFound, "Resource not found", exception.Message),
             BusinessRuleException => CreateProblem(
                 StatusCodes.Status422UnprocessableEntity, "Business rule violation", exception.Message),
+            // Thrown by the server itself for a faulty request (body too large, request timeout,
+            // malformed body): it already carries the right 4xx status, it is not a server failure.
+            BadHttpRequestException badRequest => CreateProblem(
+                badRequest.StatusCode, ReasonPhrases.GetReasonPhrase(badRequest.StatusCode), exception.Message),
             _ => CreateProblem(
                 StatusCodes.Status500InternalServerError,
                 "An unexpected error occurred",
@@ -63,8 +68,10 @@ public sealed class GlobalExceptionHandler(
 
     private static ValidationProblemDetails CreateValidationProblem(ValidationException exception)
     {
+        // A failure raised for the whole object has no property name: keep it under an empty key,
+        // the same convention ASP.NET Core's own model validation uses.
         var errors = exception.Errors
-            .GroupBy(failure => failure.PropertyName)
+            .GroupBy(failure => failure.PropertyName ?? string.Empty)
             .ToDictionary(
                 group => group.Key,
                 group => group.Select(failure => failure.ErrorMessage).Distinct().ToArray());
@@ -73,6 +80,8 @@ public sealed class GlobalExceptionHandler(
         {
             Status = StatusCodes.Status400BadRequest,
             Title = "One or more validation errors occurred.",
+            // new ValidationException("message") carries no failures: its message is the only information.
+            Detail = errors.Count == 0 ? exception.Message : null,
         };
     }
 }

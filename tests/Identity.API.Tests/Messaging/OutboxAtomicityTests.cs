@@ -17,9 +17,6 @@ public sealed class OutboxAtomicityTests(IdentityApiFixture fixture) : IClassFix
 {
     private static readonly TimeSpan CommitTimeout = TimeSpan.FromSeconds(30);
 
-    // How long the topic is watched for an event that must not be there.
-    private static readonly TimeSpan AbsenceWindow = TimeSpan.FromSeconds(5);
-
     private readonly HttpClient client = fixture.CreateClient();
 
     [Fact]
@@ -48,14 +45,9 @@ public sealed class OutboxAtomicityTests(IdentityApiFixture fixture) : IClassFix
         Assert.Equal(0, await fixture.CountCommittedAsync(Sql.UsersWithEmail, email));
         Assert.Equal(0, await fixture.CountCommittedAsync(Sql.OutboxRowsForEmail, email));
 
-        // A later registration goes through the whole path; the rolled back one never shows up.
-        var sentinel = IdentityApiFixture.NewEmail("register-sentinel");
-        var sentinelResponse = await client.PostAsJsonAsync("/api/v1/Auth/Register", new RegisterRequest(sentinel, IdentityApiFixture.ValidPassword), ct);
-        Assert.Equal(HttpStatusCode.Accepted, sentinelResponse.StatusCode);
-
-        var read = await ReadUntilEmailAsync(KafkaTopics.UserRegistered, sentinel, IdentityApiFixture.KafkaTimeout);
-        Assert.NotNull(read.Match);
-        Assert.DoesNotContain(read.Values, value => KafkaTopicReader.HasEmail(value, email));
+        // Nothing for it waits in the outbox or the SQL transport, and nothing reached the topic.
+        await WaitUntilRelayedAsync(email, ct);
+        Assert.Equal(0, await CountEventsAsync(KafkaTopics.UserRegistered, email));
     }
 
     [Fact]
@@ -76,8 +68,7 @@ public sealed class OutboxAtomicityTests(IdentityApiFixture fixture) : IClassFix
             // ...but not outside it, and nothing reached Kafka.
             Assert.Equal(0, await fixture.CountCommittedAsync(Sql.UsersWithEmail, email));
             Assert.Equal(0, await fixture.CountCommittedAsync(Sql.OutboxRowsForEmail, email));
-            var beforeCommit = await ReadUntilEmailAsync(KafkaTopics.UserRegistered, email, AbsenceWindow);
-            Assert.Null(beforeCommit.Match);
+            Assert.Equal(0, await CountEventsAsync(KafkaTopics.UserRegistered, email));
 
             scenario.Release.SetResult();
             response = await request.WaitAsync(CommitTimeout, ct);
@@ -123,14 +114,8 @@ public sealed class OutboxAtomicityTests(IdentityApiFixture fixture) : IClassFix
         Assert.Equal(0, await fixture.CountCommittedAsync(Sql.PasswordResetAuditRowsForEmail, email));
         Assert.Equal(0, await fixture.CountCommittedAsync(Sql.OutboxRowsForEmail, email));
 
-        var sentinel = IdentityApiFixture.NewEmail("reset-sentinel");
-        await fixture.CreateConfirmedUserAsync(sentinel);
-        var sentinelResponse = await client.PostAsJsonAsync("/api/v1/Auth/ForgotPassword", new ForgotPasswordRequest(sentinel), ct);
-        Assert.Equal(HttpStatusCode.Accepted, sentinelResponse.StatusCode);
-
-        var read = await ReadUntilEmailAsync(KafkaTopics.PasswordResetRequested, sentinel, IdentityApiFixture.KafkaTimeout);
-        Assert.NotNull(read.Match);
-        Assert.DoesNotContain(read.Values, value => KafkaTopicReader.HasEmail(value, email));
+        await WaitUntilRelayedAsync(email, ct);
+        Assert.Equal(0, await CountEventsAsync(KafkaTopics.PasswordResetRequested, email));
     }
 
     [Fact]
@@ -150,8 +135,7 @@ public sealed class OutboxAtomicityTests(IdentityApiFixture fixture) : IClassFix
 
             Assert.Equal(0, await fixture.CountCommittedAsync(Sql.PasswordResetAuditRowsForEmail, email));
             Assert.Equal(0, await fixture.CountCommittedAsync(Sql.OutboxRowsForEmail, email));
-            var beforeCommit = await ReadUntilEmailAsync(KafkaTopics.PasswordResetRequested, email, AbsenceWindow);
-            Assert.Null(beforeCommit.Match);
+            Assert.Equal(0, await CountEventsAsync(KafkaTopics.PasswordResetRequested, email));
 
             scenario.Release.SetResult();
             response = await request.WaitAsync(CommitTimeout, ct);
@@ -181,15 +165,8 @@ public sealed class OutboxAtomicityTests(IdentityApiFixture fixture) : IClassFix
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Equal(0, await fixture.CountCommittedAsync(Sql.OutboxRowsForEmail, unknown));
 
-        // An event requested afterwards for a real account arrives; none ever came for the unknown e-mail.
-        var sentinel = IdentityApiFixture.NewEmail("reset-known");
-        await fixture.CreateConfirmedUserAsync(sentinel);
-        var sentinelResponse = await client.PostAsJsonAsync("/api/v1/Auth/ForgotPassword", new ForgotPasswordRequest(sentinel), ct);
-        Assert.Equal(HttpStatusCode.Accepted, sentinelResponse.StatusCode);
-
-        var read = await ReadUntilEmailAsync(KafkaTopics.PasswordResetRequested, sentinel, IdentityApiFixture.KafkaTimeout);
-        Assert.NotNull(read.Match);
-        Assert.DoesNotContain(read.Values, value => KafkaTopicReader.HasEmail(value, unknown));
+        await WaitUntilRelayedAsync(unknown, ct);
+        Assert.Equal(0, await CountEventsAsync(KafkaTopics.PasswordResetRequested, unknown));
     }
 
     [Fact]
@@ -228,15 +205,52 @@ public sealed class OutboxAtomicityTests(IdentityApiFixture fixture) : IClassFix
         Assert.Equal(first.Content.Headers.ContentType, second.Content.Headers.ContentType);
         Assert.Equal(1, await fixture.CountCommittedAsync(Sql.UsersWithEmail, email));
 
-        // Exactly one UserRegisteredEvent: read the topic up to a later registration's event.
-        var sentinel = IdentityApiFixture.NewEmail("register-race-sentinel");
-        var sentinelResponse = await client.PostAsJsonAsync("/api/v1/Auth/Register", new RegisterRequest(sentinel, IdentityApiFixture.ValidPassword), ct);
-        Assert.Equal(HttpStatusCode.Accepted, sentinelResponse.StatusCode);
-
-        var read = await ReadUntilEmailAsync(KafkaTopics.UserRegistered, sentinel, IdentityApiFixture.KafkaTimeout);
+        // Exactly one UserRegisteredEvent: once the first one is on the topic and nothing for this
+        // e-mail is left in the outbox or the SQL transport, every event there will ever be for it
+        // has been produced, so reading the whole topic gives the final count.
+        var read = await ReadUntilEmailAsync(KafkaTopics.UserRegistered, email, IdentityApiFixture.KafkaTimeout);
         Assert.NotNull(read.Match);
-        Assert.Single(read.Values, value => KafkaTopicReader.HasEmail(value, email));
+        await WaitUntilRelayedAsync(email, ct);
+        Assert.Equal(1, await CountEventsAsync(KafkaTopics.UserRegistered, email));
     }
+
+    /// <summary>
+    /// Waits (bounded) until no OutboxMessage and no SQL transport message mentions
+    /// <paramref name="email"/>. The relay acknowledges a transport message only after Kafka has
+    /// acknowledged its produce, so from then on every committed event for that e-mail is on its
+    /// topic, whatever its partition and whatever the relay's ordering.
+    /// </summary>
+    private async Task WaitUntilRelayedAsync(string email, CancellationToken ct)
+    {
+        await using var connection = new Npgsql.NpgsqlConnection(fixture.DatabaseConnectionString);
+        await connection.OpenAsync(ct);
+
+        var deadline = TimeProvider.System.GetUtcNow() + IdentityApiFixture.KafkaTimeout;
+        while (TimeProvider.System.GetUtcNow() < deadline)
+        {
+            if (await CountAsync(connection, Sql.OutboxRowsForEmail, email, ct) == 0
+                && await CountAsync(connection, Sql.TransportMessagesForEmail, email, ct) == 0)
+            {
+                return;
+            }
+
+            await Task.Yield();
+        }
+
+        Assert.Fail($"Events for {email} were still waiting in the outbox or the SQL transport after {IdentityApiFixture.KafkaTimeout}.");
+    }
+
+    private static async Task<long> CountAsync(Npgsql.NpgsqlConnection connection, string sql, string email, CancellationToken ct)
+    {
+        await using var command = new Npgsql.NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("marker", email);
+        return (long)(await command.ExecuteScalarAsync(ct))!;
+    }
+
+    /// <summary>Events for <paramref name="email"/> among everything produced to <paramref name="topic"/> so far.</summary>
+    private async Task<int> CountEventsAsync(string topic, string email) =>
+        (await KafkaTopicReader.ReadToEndAsync(fixture.KafkaBootstrapServers, topic, IdentityApiFixture.KafkaTimeout))
+            .Count(value => KafkaTopicReader.HasEmail(value, email));
 
     /// <summary>
     /// Polls pg_stat_activity (bounded) until a session waits on a lock while inserting into

@@ -9,4 +9,9 @@
     <UserSecretsId>5bc8eb22-8b34-4e67-b601-11c536bbe1c8</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Kafka" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
 </Project>

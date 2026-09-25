@@ -192,6 +192,87 @@ public sealed class OutboxAtomicityTests(IdentityApiFixture fixture) : IClassFix
         Assert.DoesNotContain(read.Values, value => KafkaTopicReader.HasEmail(value, unknown));
     }
 
+    [Fact]
+    public async Task Register_ShouldAnswerBothAcceptedAndPublishOneEvent_WhenSameEmailRegistersConcurrently()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var email = IdentityApiFixture.NewEmail("register-race");
+        var request = new RegisterRequest(email, IdentityApiFixture.ValidPassword);
+        var scenario = fixture.CommitGate.Arm(email, Sql.UsersWithEmail, CommitAction.Hold);
+        HttpResponseMessage first;
+        HttpResponseMessage second;
+        try
+        {
+            // First registration: user inserted, commit held, so the e-mail is still invisible to others.
+            var firstRequest = client.PostAsJsonAsync("/api/v1/Auth/Register", request, ct);
+            Assert.Equal(new InTransactionSnapshot(OutboxRows: 1, BusinessRows: 1), await scenario.Reached.Task.WaitAsync(CommitTimeout, ct));
+
+            // Second registration: passes the "already registered?" lookup, then its INSERT blocks on
+            // the unique index row locked by the first transaction.
+            var secondRequest = client.PostAsJsonAsync("/api/v1/Auth/Register", request, ct);
+            await WaitForBlockedUserInsertAsync(secondRequest, ct);
+
+            // First commits: the blocked INSERT now fails with a unique violation (23505).
+            scenario.Release.SetResult();
+            first = await firstRequest.WaitAsync(CommitTimeout, ct);
+            second = await secondRequest.WaitAsync(CommitTimeout, ct);
+        }
+        finally
+        {
+            fixture.CommitGate.Disarm(scenario);
+        }
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, second.StatusCode);
+        Assert.Equal(await first.Content.ReadAsStringAsync(ct), await second.Content.ReadAsStringAsync(ct));
+        Assert.Equal(first.Content.Headers.ContentType, second.Content.Headers.ContentType);
+        Assert.Equal(1, await fixture.CountCommittedAsync(Sql.UsersWithEmail, email));
+
+        // Exactly one UserRegisteredEvent: read the topic up to a later registration's event.
+        var sentinel = IdentityApiFixture.NewEmail("register-race-sentinel");
+        var sentinelResponse = await client.PostAsJsonAsync("/api/v1/Auth/Register", new RegisterRequest(sentinel, IdentityApiFixture.ValidPassword), ct);
+        Assert.Equal(HttpStatusCode.Accepted, sentinelResponse.StatusCode);
+
+        var read = await ReadUntilEmailAsync(KafkaTopics.UserRegistered, sentinel, IdentityApiFixture.KafkaTimeout);
+        Assert.NotNull(read.Match);
+        Assert.Single(read.Values, value => KafkaTopicReader.HasEmail(value, email));
+    }
+
+    /// <summary>
+    /// Polls pg_stat_activity (bounded) until a session waits on a lock while inserting into
+    /// AspNetUsers: the second registration has reached its INSERT and is blocked by the first.
+    /// </summary>
+    private async Task WaitForBlockedUserInsertAsync(Task<HttpResponseMessage> pendingRequest, CancellationToken ct)
+    {
+        const string blockedInsertSql = """
+            SELECT count(*) FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock' AND query LIKE '%INSERT INTO "AspNetUsers"%'
+            """;
+
+        await using var connection = new Npgsql.NpgsqlConnection(fixture.DatabaseConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = new Npgsql.NpgsqlCommand(blockedInsertSql, connection);
+
+        var deadline = TimeProvider.System.GetUtcNow() + CommitTimeout;
+        while (TimeProvider.System.GetUtcNow() < deadline)
+        {
+            if (pendingRequest.IsCompleted)
+            {
+                var response = await pendingRequest;
+                Assert.Fail($"The second registration completed ({(int)response.StatusCode}) before reaching the blocked INSERT.");
+            }
+
+            if ((long)(await command.ExecuteScalarAsync(ct))! > 0)
+            {
+                return;
+            }
+
+            await Task.Yield();
+        }
+
+        Assert.Fail("The second registration never blocked on the AspNetUsers unique index.");
+    }
+
     private Task<KafkaReadResult> ReadUntilEmailAsync(string topic, string email, TimeSpan timeout) =>
         KafkaTopicReader.ReadUntilAsync(
             fixture.KafkaBootstrapServers, topic, value => KafkaTopicReader.HasEmail(value, email), timeout);

@@ -83,6 +83,24 @@ public sealed class AppHostResourceTests : IAsyncLifetime
     }
 
     [Fact]
+    public void AddProject_ShouldReferenceOnlyCustomerDb_WhenCustomerApiIsDeclared()
+    {
+        // README (feature/customer-api): customer-api never reaches identity-api's database, so
+        // AppHost hands it no connection string but its own.
+        var customerApi = Assert.Single(_builder.Resources.OfType<ProjectResource>(), r => r.Name == "customer-api");
+
+        var referencedDatabases = customerApi.Annotations.OfType<ResourceRelationshipAnnotation>()
+            .Where(a => a.Type == "Reference")
+            .Select(a => a.Resource)
+            .OfType<PostgresDatabaseResource>()
+            .Select(d => d.Name)
+            .Distinct()
+            .ToList();
+
+        Assert.Equal(["customer-db"], referencedDatabases);
+    }
+
+    [Fact]
     public void AddKafka_ShouldDeclareKafkaServer_WhenAppHostIsBuilt()
     {
         var kafka = Assert.Single(_builder.Resources.OfType<KafkaServerResource>());

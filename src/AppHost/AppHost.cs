@@ -17,7 +17,21 @@ var orderDb = postgres.AddDatabase("order-db");
 // identity-events topics.
 var kafka = builder.AddKafka("kafka");
 
+// The HMAC-SHA256 key identity-api signs its JWTs with. Generated on the first run and persisted
+// in this project's user secrets, so no key is ever committed. Every service that validates those
+// tokens (api-gateway, and the business services as they are added) receives this same parameter
+// as Jwt__SigningKey, and validates tokens on its own without calling identity-api.
+var jwtSigningKey = builder.AddParameter(
+    "jwt-signing-key",
+    new GenerateParameterDefault { MinLength = 64, Special = false },
+    secret: true,
+    persist: true);
+
 // Each business service is added below, in its own feature branch, with
 // .WithReference(...) to the resources it uses.
+var catalogService = builder.AddProject<Projects.Catalog_API>("catalog-api")
+    .WithReference(catalogDb)
+    .WaitFor(catalogDb)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
 builder.Build().Run();

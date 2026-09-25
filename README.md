@@ -558,10 +558,10 @@ Identity and access control, packaged as its own microservice - with one deliber
 
 ### Tasks
 
-- [ ] `Category`, `Product` models, `AppDbContext`, DTOs, Mapster mapping, FluentValidation validators, interface-backed services (side by side in `Services/`, no separate folder split), controllers
-- [ ] Depends on `Common.Lib`
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Catalog_API>("catalog-api").WithReference(catalogDb)`
-- [ ] Tests, including one verifying `GET /api/v1/Catalog/Products/{id}`'s exact response shape (formalized later by `feature/contract-testing`)
+- [x] `Category`, `Product` models, `AppDbContext`, DTOs, Mapster mapping, FluentValidation validators, interface-backed services (side by side in `Services/`, no separate folder split), controllers
+- [x] Depends on `Common.Lib`
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Catalog_API>("catalog-api").WithReference(catalogDb)`
+- [x] Tests, including one verifying `GET /api/v1/Catalog/Products/{id}`'s exact response shape (formalized later by `feature/contract-testing`)
 
 ## feature/customer-api
 

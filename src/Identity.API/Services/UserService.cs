@@ -12,6 +12,7 @@ using MassTransit.EntityFrameworkCoreIntegration;
 using Mapster;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Identity.API.Services;
 
@@ -54,7 +55,23 @@ public sealed class UserService(
             await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
             var user = new AppUser { UserName = email, Email = email };
-            var created = await userManager.CreateAsync(user, request.Password);
+            IdentityResult created;
+            try
+            {
+                created = await userManager.CreateAsync(user, request.Password);
+            }
+            catch (DbUpdateException exception) when (exception.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+            })
+            {
+                // A concurrent registration of the same e-mail committed between Identity's duplicate
+                // check and this insert: the unique index rejects it. Same silent outcome as a known
+                // e-mail (the transaction is rolled back on dispose), never a 500 that would reveal it.
+                logger.LogInformation("Registration ignored: the e-mail was registered concurrently");
+                return;
+            }
+
             if (!created.Succeeded)
             {
                 if (created.Errors.Any(e => e.Code is nameof(IdentityErrorDescriber.DuplicateEmail)

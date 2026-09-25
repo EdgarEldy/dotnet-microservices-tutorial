@@ -507,11 +507,11 @@ The Aspire orchestration layer and the shared cross-cutting service wiring. No b
 
 ### Tasks
 
-- [ ] `src/AppHost/`: created via the standard Aspire project templates (`dotnet new aspire-apphost`), `AppHost.cs` starts with just the resource declarations that exist so far (PostgreSQL server, one database per business service, a Kafka resource) - every business service is added to it incrementally, in its own branch, as that service is built
-- [ ] `src/ServiceDefaults/`: created via `dotnet new aspire-servicedefaults`, exposing one `AddServiceDefaults()` extension method that wires OpenTelemetry (traces, metrics, logs, OTLP exporter pointed at the Aspire dashboard), ASP.NET Core Health Checks (`/health/live`, `/health/ready`), and default HTTP resilience for outgoing `HttpClient`s - referenced by every service from this branch onward
-- [ ] Every service's `Program.cs` calls `builder.AddServiceDefaults()` as its first line, before anything else is registered
-- [ ] ASP.NET Core Health Checks convention established: every service exposes `/health/live` (process is up) and `/health/ready` (dependencies - DB, Kafka - are reachable) via tagged health check groups, provided by `ServiceDefaults`
-- [ ] `.github/workflows/ci-infrastructure.yml` (covering `AppHost`/`ServiceDefaults` build) or folded into `ci-common-lib.yml`
+- [x] `src/AppHost/`: created via the standard Aspire project templates (`dotnet new aspire-apphost`), `AppHost.cs` starts with just the resource declarations that exist so far (PostgreSQL server, one database per business service, a Kafka resource) - every business service is added to it incrementally, in its own branch, as that service is built
+- [x] `src/ServiceDefaults/`: created via `dotnet new aspire-servicedefaults`, exposing one `AddServiceDefaults()` extension method that wires OpenTelemetry (traces, metrics, logs, OTLP exporter pointed at the Aspire dashboard), ASP.NET Core Health Checks (`/health/live`, `/health/ready`), and default HTTP resilience for outgoing `HttpClient`s - referenced by every service from this branch onward
+- [x] Every service's `Program.cs` calls `builder.AddServiceDefaults()` as its first line, before anything else is registered
+- [x] ASP.NET Core Health Checks convention established: every service exposes `/health/live` (process is up) and `/health/ready` (dependencies - DB, Kafka - are reachable) via tagged health check groups, provided by `ServiceDefaults`
+- [x] `.github/workflows/ci-infrastructure.yml` (covering `AppHost`/`ServiceDefaults` build) or folded into `ci-common-lib.yml`
 
 ## feature/identity-api
 

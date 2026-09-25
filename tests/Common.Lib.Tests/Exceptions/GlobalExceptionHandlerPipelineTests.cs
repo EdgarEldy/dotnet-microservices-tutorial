@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Common.Lib.Tests.Exceptions;
@@ -22,6 +23,7 @@ public sealed class GlobalExceptionHandlerPipelineTests(GlobalExceptionHandlerPi
     [InlineData("/throw/validation", HttpStatusCode.BadRequest)]
     [InlineData("/throw/not-found", HttpStatusCode.NotFound)]
     [InlineData("/throw/business-rule", HttpStatusCode.UnprocessableEntity)]
+    [InlineData("/throw/bad-request", HttpStatusCode.RequestEntityTooLarge)]
     [InlineData("/throw/unexpected", HttpStatusCode.InternalServerError)]
     public async Task UseExceptionHandler_ShouldReturnProblemDetails_WhenEndpointThrows(string path, HttpStatusCode expectedStatus)
     {
@@ -57,6 +59,19 @@ public sealed class GlobalExceptionHandlerPipelineTests(GlobalExceptionHandlerPi
     }
 
     [Fact]
+    public async Task UseExceptionHandler_ShouldReturnItsStatusAndMessage_WhenEndpointThrowsBadHttpRequestException()
+    {
+        using var response = await fixture.Client.GetAsync("/throw/bad-request", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        var body = await ReadJsonAsync(response);
+        Assert.Equal(
+            ReasonPhrases.GetReasonPhrase(StatusCodes.Status413PayloadTooLarge),
+            body.GetProperty("title").GetString());
+        Assert.Equal(PipelineFixture.BadRequestMessage, body.GetProperty("detail").GetString());
+    }
+
+    [Fact]
     public async Task UseExceptionHandler_ShouldLeaveSuccessResponseUntouched_WhenEndpointDoesNotThrow()
     {
         using var response = await fixture.Client.GetAsync("/ok", TestContext.Current.CancellationToken);
@@ -79,6 +94,8 @@ public sealed class GlobalExceptionHandlerPipelineTests(GlobalExceptionHandlerPi
     {
         public const string SecretMessage = "Host=order-db;Password=s3cr3t";
 
+        public const string BadRequestMessage = "Request body too large.";
+
         private WebApplication? _app;
 
         public HttpClient Client { get; private set; } = null!;
@@ -98,6 +115,8 @@ public sealed class GlobalExceptionHandlerPipelineTests(GlobalExceptionHandlerPi
                 throw new ValidationException([new ValidationFailure("Name", "Name is required.")]));
             _app.MapGet("/throw/not-found", void () => throw new ResourceNotFoundException("Product", 42));
             _app.MapGet("/throw/business-rule", void () => throw new BusinessRuleException("Duplicate name."));
+            _app.MapGet("/throw/bad-request", void () =>
+                throw new BadHttpRequestException(BadRequestMessage, StatusCodes.Status413PayloadTooLarge));
             _app.MapGet("/throw/unexpected", void () => throw new InvalidOperationException(SecretMessage));
 
             await _app.StartAsync();

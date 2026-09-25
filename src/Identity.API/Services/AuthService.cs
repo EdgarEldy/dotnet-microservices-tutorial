@@ -37,6 +37,13 @@ public sealed class AuthService(
         var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
         if (!result.Succeeded)
         {
+            if (result.IsLockedOut || result.IsNotAllowed)
+            {
+                // Identity refuses these before hashing the password: hash anyway, so an unconfirmed or
+                // locked account answers as slowly as a wrong password and its state stays hidden.
+                userManager.PasswordHasher.VerifyHashedPassword(user, DummyPasswordHash.Value, request.Password);
+            }
+
             var reason = result.IsLockedOut ? "LockedOut" : result.IsNotAllowed ? "NotAllowed" : "InvalidPassword";
             AddAuditLog(user.Id, AuditActions.LoginFailed, AuditActions.UserEntity, user.Id, reason);
             await dbContext.SaveChangesAsync(cancellationToken);

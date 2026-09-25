@@ -76,6 +76,88 @@ public static class KafkaTopicReader
             return new KafkaReadResult(values, null);
         });
 
+    /// <summary>
+    /// Reads every partition of <paramref name="topic"/> from its first offset up to the high
+    /// watermark taken when the call starts, i.e. every event produced so far, whatever its key
+    /// and partition. Throws when that end is not reached within <paramref name="timeout"/>.
+    /// </summary>
+    public static Task<IReadOnlyList<string>> ReadToEndAsync(string bootstrapServers, string topic, TimeSpan timeout) =>
+        Task.Run<IReadOnlyList<string>>(() =>
+        {
+            var stopwatch = Stopwatch.StartNew();
+
+            List<TopicPartition> partitions;
+            using (var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = bootstrapServers }).Build())
+            {
+                var metadata = admin.GetMetadata(topic, timeout);
+                partitions = metadata.Topics.Single().Partitions
+                    .Select(partition => new TopicPartition(topic, partition.PartitionId))
+                    .ToList();
+            }
+
+            var config = new ConsumerConfig
+            {
+                BootstrapServers = bootstrapServers,
+                GroupId = $"identity-api-tests-{Guid.NewGuid():N}",
+                EnableAutoCommit = false,
+            };
+
+            using var consumer = new ConsumerBuilder<Ignore, string>(config).Build();
+
+            // Next offset still to read, per partition that has anything to read.
+            var endOffsets = new Dictionary<TopicPartition, long>();
+            foreach (var partition in partitions)
+            {
+                var watermarks = consumer.QueryWatermarkOffsets(partition, timeout);
+                if (watermarks.High > watermarks.Low)
+                {
+                    endOffsets[partition] = watermarks.High.Value;
+                }
+            }
+
+            var values = new List<string>();
+            if (endOffsets.Count == 0)
+            {
+                return values;
+            }
+
+            consumer.Assign(endOffsets.Keys.Select(partition => new TopicPartitionOffset(partition, Offset.Beginning)));
+            try
+            {
+                while (endOffsets.Count > 0)
+                {
+                    var remaining = timeout - stopwatch.Elapsed;
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        throw new TimeoutException(
+                            $"Topic {topic} not read to its end within {timeout}: {endOffsets.Count} partition(s) left.");
+                    }
+
+                    var record = consumer.Consume(remaining < TimeSpan.FromMilliseconds(500) ? remaining : TimeSpan.FromMilliseconds(500));
+                    if (record is null)
+                    {
+                        continue;
+                    }
+
+                    if (record.Message?.Value is { } value)
+                    {
+                        values.Add(value);
+                    }
+
+                    if (endOffsets.TryGetValue(record.TopicPartition, out var end) && record.Offset.Value + 1 >= end)
+                    {
+                        endOffsets.Remove(record.TopicPartition);
+                    }
+                }
+            }
+            finally
+            {
+                consumer.Close();
+            }
+
+            return values;
+        });
+
     /// <summary>True when the event body carries <paramref name="email"/> as its Email field.</summary>
     public static bool HasEmail(string value, string email) =>
         string.Equals(GetString(value, "email"), email, StringComparison.OrdinalIgnoreCase);

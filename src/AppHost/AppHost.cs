@@ -29,6 +29,13 @@ var jwtSigningKey = builder.AddParameter(
 
 // Each business service is added below, in its own feature branch, with
 // .WithReference(...) to the resources it uses.
+builder.AddProject<Projects.Identity_API>("identity-api")
+    .WithReference(identityDb)
+    .WaitFor(identityDb)
+    .WithReference(kafka)
+    .WaitFor(kafka)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
+
 var catalogService = builder.AddProject<Projects.Catalog_API>("catalog-api")
     .WithReference(catalogDb)
     .WaitFor(catalogDb)

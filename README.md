@@ -532,17 +532,17 @@ Identity and access control, packaged as its own microservice - with one deliber
 
 ### Tasks
 
-- [ ] `src/Contracts/` project created (if not already, from `feature/common-lib`'s dependency graph): `UserRegisteredEvent`, `PasswordResetRequestedEvent` message contracts, referenced as a project reference by both `identity-api` (publisher) and `notification-worker` (consumer, added in a later branch) - never duplicated as two independently-defined classes that happen to look alike
-- [ ] ASP.NET Core Identity (`AppUser : IdentityUser<int>`, `AppRole : IdentityRole<int>`), custom `Permission`/`RolePermission` entities for resource/action authorization beyond Identity's own role-only model
-- [ ] `RefreshToken`, `BlacklistedAccessToken`, `AuditLog` entities
-- [ ] **No `IEmailService` in this service.** It publishes an event and lets `notification-worker` handle delivery - the same "one service owns everything that leaves the system" rule applied to `order-api`
-- [ ] `AddEntityFrameworkOutbox<AppDbContext>(o => { o.UsePostgres(); o.UseBusOutbox(); })` configured on the MassTransit registration - see [The Saga in detail](#the-saga-in-detail-order-confirmation)
-- [ ] `identity-api` publishes `UserRegisteredEvent` (UserId, Email, confirmation token) right after registration, and `PasswordResetRequestedEvent` (UserId, Email, reset token) right after a reset is requested - both calls are ordinary `IPublishEndpoint.Publish(...)`, and the outbox above is what makes each one land in the same transaction as the row that triggered it, atomically, rather than relying on careful call ordering
-- [ ] A custom claims principal factory embeds the user's resolved permissions into the JWT at login, so downstream permission checks never need a database call
-- [ ] Depends on `Common.Lib`
-- [ ] `JwtService` signs tokens with a shared secret/key, documented clearly since every other business service and `api-gateway` need to validate the same tokens independently
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Identity_API>("identity-api").WithReference(identityDb).WithReference(kafka)`
-- [ ] Unit, repository, and controller tests, plus a test verifying both events end up in `OutboxMessage` within the same transaction as the row that triggered them, and are relayed to Kafka only after that transaction commits
+- [x] `src/Contracts/` project created (if not already, from `feature/common-lib`'s dependency graph): `UserRegisteredEvent`, `PasswordResetRequestedEvent` message contracts, referenced as a project reference by both `identity-api` (publisher) and `notification-worker` (consumer, added in a later branch) - never duplicated as two independently-defined classes that happen to look alike
+- [x] ASP.NET Core Identity (`AppUser : IdentityUser<int>`, `AppRole : IdentityRole<int>`), custom `Permission`/`RolePermission` entities for resource/action authorization beyond Identity's own role-only model
+- [x] `RefreshToken`, `BlacklistedAccessToken`, `AuditLog` entities
+- [x] **No `IEmailService` in this service.** It publishes an event and lets `notification-worker` handle delivery - the same "one service owns everything that leaves the system" rule applied to `order-api`
+- [x] `AddEntityFrameworkOutbox<AppDbContext>(o => { o.UsePostgres(); o.UseBusOutbox(); })` configured on the MassTransit registration - see [The Saga in detail](#the-saga-in-detail-order-confirmation)
+- [x] `identity-api` publishes `UserRegisteredEvent` (UserId, Email, confirmation token) right after registration, and `PasswordResetRequestedEvent` (UserId, Email, reset token) right after a reset is requested - both calls are ordinary `IPublishEndpoint.Publish(...)`, and the outbox above is what makes each one land in the same transaction as the row that triggered it, atomically, rather than relying on careful call ordering
+- [x] A custom claims principal factory embeds the user's resolved permissions into the JWT at login, so downstream permission checks never need a database call
+- [x] Depends on `Common.Lib`
+- [x] `JwtService` signs tokens with a shared secret/key, documented clearly since every other business service and `api-gateway` need to validate the same tokens independently
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Identity_API>("identity-api").WithReference(identityDb).WithReference(kafka)`
+- [x] Unit, repository, and controller tests, plus a test verifying both events end up in `OutboxMessage` within the same transaction as the row that triggered them, and are relayed to Kafka only after that transaction commits
 
 ## feature/catalog-api
 

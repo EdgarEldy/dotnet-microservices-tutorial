@@ -8,6 +8,9 @@
     <AspireVersion>13.5.4</AspireVersion>
     <!-- EF Core ships with the .NET runtime: same patch as $(DotnetPackagesVersion) -->
     <EfCoreVersion>10.0.12</EfCoreVersion>
+    <!-- 8.x stays Apache-2.0 (9.x is commercial): never bump the major -->
+    <MassTransitVersion>8.5.10</MassTransitVersion>
+    <TestcontainersVersion>4.15.0</TestcontainersVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,13 +23,20 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(DotnetPackagesVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="$(DotnetPackagesVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(DotnetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(DotnetPackagesVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="$(DotnetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="$(DotnetPackagesVersion)" />
     <!-- EF Core -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(EfCoreVersion)" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="$(EfCoreVersion)" />
     <!-- Transitive pin: Aspire.Npgsql.EntityFrameworkCore.PostgreSQL alone resolves an older patch
          than Design/Tools, so a project referencing a service would compile against two versions -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(EfCoreVersion)" />
+    <!-- MassTransit -->
+    <PackageVersion Include="MassTransit" Version="$(MassTransitVersion)" />
+    <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="$(MassTransitVersion)" />
+    <PackageVersion Include="MassTransit.Kafka" Version="$(MassTransitVersion)" />
+    <PackageVersion Include="MassTransit.SqlTransport.PostgreSql" Version="$(MassTransitVersion)" />
     <!-- dotnet/extensions packages -->
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="$(MicrosoftExtensionsVersion)" />
@@ -45,7 +55,9 @@
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
     <PackageVersion Include="Moq" Version="4.21.0" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.Testing" Version="$(MicrosoftExtensionsVersion)" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Testcontainers.Kafka" Version="$(TestcontainersVersion)" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="$(TestcontainersVersion)" />
   </ItemGroup>
 
 </Project>

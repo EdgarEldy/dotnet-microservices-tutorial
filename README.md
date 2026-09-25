@@ -575,11 +575,11 @@ Identity and access control, packaged as its own microservice - with one deliber
 
 ### Tasks
 
-- [ ] `Customer` model with a plain `UserId` column (no FK to `identity-api`)
-- [ ] `AppDbContext`, DTOs, Mapster mapping, FluentValidation validator, interface-backed service (side by side in `Services/`), controller
-- [ ] Depends on `Common.Lib`
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Customer_API>("customer-api").WithReference(customerDb)`
-- [ ] Tests, including one confirming `customer-api` never attempts a direct database call against `identity-api`'s schema
+- [x] `Customer` model with a plain `UserId` column (no FK to `identity-api`)
+- [x] `AppDbContext`, DTOs, Mapster mapping, FluentValidation validator, interface-backed service (side by side in `Services/`), controller
+- [x] Depends on `Common.Lib`
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Customer_API>("customer-api").WithReference(customerDb)`
+- [x] Tests, including one confirming `customer-api` never attempts a direct database call against `identity-api`'s schema
 
 ## feature/order-api
 

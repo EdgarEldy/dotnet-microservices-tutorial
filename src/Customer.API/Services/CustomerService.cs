@@ -9,13 +9,21 @@ namespace Customer.API.Services;
 
 public sealed class CustomerService(AppDbContext dbContext, ILogger<CustomerService> logger) : ICustomerService
 {
-    public async Task<CustomerResponse> GetByIdAsync(int id, CancellationToken cancellationToken) =>
-        await dbContext.Customers
-            .AsNoTracking()
-            .Where(c => c.Id == id)
-            .ProjectToType<CustomerResponse>()
-            .FirstOrDefaultAsync(cancellationToken)
-        ?? throw new ResourceNotFoundException(nameof(Models.Customer), id);
+    public async Task<CustomerResponse> GetByIdAsync(int id, int userId, bool canReadAnyProfile, CancellationToken cancellationToken)
+    {
+        var customers = dbContext.Customers.AsNoTracking().Where(c => c.Id == id);
+
+        // A profile holds personal data: a user only reads their own (order-api forwards the
+        // caller's token, and a user only orders for themselves). Someone else's profile answers
+        // like a missing one, so ids cannot be enumerated.
+        if (!canReadAnyProfile)
+        {
+            customers = customers.Where(c => c.UserId == userId);
+        }
+
+        return await customers.ProjectToType<CustomerResponse>().FirstOrDefaultAsync(cancellationToken)
+            ?? throw new ResourceNotFoundException(nameof(Models.Customer), id);
+    }
 
     public async Task<CustomerResponse> CreateAsync(int userId, CreateCustomerRequest request, CancellationToken cancellationToken)
     {

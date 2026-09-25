@@ -18,12 +18,14 @@ namespace Customer.API.Controllers;
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
 public sealed class CustomersController(ICustomerService customerService) : ControllerBase
 {
+    /// <summary>Reads the caller's own profile (administrators may read any; others answer 404).</summary>
     [HttpGet("{id:int}")]
     [Authorize(Policy = CustomerPermissions.Read)]
     [ProducesResponseType(typeof(CustomerResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CustomerResponse>> GetCustomer(int id, CancellationToken cancellationToken) =>
-        await customerService.GetByIdAsync(id, cancellationToken);
+        await customerService.GetByIdAsync(
+            id, User.GetUserId(), User.IsInRole(CustomerPermissions.AdminRole), cancellationToken);
 
     /// <summary>Creates the caller's own profile; the UserId comes from the access token.</summary>
     [HttpPost]

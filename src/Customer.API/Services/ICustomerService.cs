@@ -4,7 +4,11 @@ namespace Customer.API.Services;
 
 public interface ICustomerService
 {
-    Task<CustomerResponse> GetByIdAsync(int id, CancellationToken cancellationToken);
+    /// <summary>
+    /// Reads a profile: the caller's own, or any profile when <paramref name="canReadAnyProfile"/>
+    /// (administrators).
+    /// </summary>
+    Task<CustomerResponse> GetByIdAsync(int id, int userId, bool canReadAnyProfile, CancellationToken cancellationToken);
 
     /// <summary>Creates the profile of <paramref name="userId"/>; a user has at most one.</summary>
     Task<CustomerResponse> CreateAsync(int userId, CreateCustomerRequest request, CancellationToken cancellationToken);

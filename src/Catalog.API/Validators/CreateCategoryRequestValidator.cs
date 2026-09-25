@@ -8,6 +8,10 @@ public sealed class CreateCategoryRequestValidator : AbstractValidator<CreateCat
 {
     public CreateCategoryRequestValidator()
     {
-        RuleFor(r => r.CategoryName).NotEmpty().MaximumLength(CatalogLimits.CategoryNameMaxLength);
+        // Length measured after Trim, on the value CategoryService actually stores.
+        RuleFor(r => r.CategoryName)
+            .NotEmpty()
+            .Must(name => name.Trim().Length <= CatalogLimits.CategoryNameMaxLength)
+            .WithMessage($"{{PropertyName}} must be {CatalogLimits.CategoryNameMaxLength} characters or fewer.");
     }
 }

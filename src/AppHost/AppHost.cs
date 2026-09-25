@@ -41,4 +41,9 @@ var catalogService = builder.AddProject<Projects.Catalog_API>("catalog-api")
     .WaitFor(catalogDb)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
+var customerService = builder.AddProject<Projects.Customer_API>("customer-api")
+    .WithReference(customerDb)
+    .WaitFor(customerDb)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
+
 builder.Build().Run();

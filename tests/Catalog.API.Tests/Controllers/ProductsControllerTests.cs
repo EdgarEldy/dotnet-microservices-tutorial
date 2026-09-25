@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Catalog.API.Data;
 using Catalog.API.Dtos;
 using Catalog.API.Models;
 using Catalog.API.Tests.TestSupport;
@@ -201,6 +202,39 @@ public sealed class ProductsControllerTests(CatalogApiFactory factory) : IClassF
 
         var problem = await ProblemAssertions.AssertProblemAsync(response, HttpStatusCode.UnprocessableEntity);
         Assert.Contains("999999", problem.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task CreateProduct_ShouldReturnCreatedWithTrimmedName_WhenOnlyPaddingExceedsMaxLength()
+    {
+        // The service stores the trimmed name: surrounding spaces must not count against the limit.
+        var categoryId = await CreateCategoryWithProductsAsync("Padded");
+        var name = new string('p', 150);
+        var padded = new string(' ', 30) + name + new string(' ', 30);
+        Assert.True(padded.Length > CatalogLimits.ProductNameMaxLength);
+        using var client = factory.CreateAdminClient();
+
+        using var response = await client.PostAsJsonAsync(
+            ProductsUrl, new CreateProductRequest(categoryId, padded, 3m), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<ProductResponse>(TestContext.Current.CancellationToken);
+        Assert.NotNull(created);
+        Assert.Equal(name, created.ProductName);
+        Assert.Equal(name, await factory.WithDbContextAsync(dbContext =>
+            Task.FromResult(dbContext.Products.Single(p => p.Id == created.Id).ProductName)));
+    }
+
+    [Fact]
+    public async Task CreateProduct_ShouldReturnValidationProblem_WhenTrimmedNameExceedsMaxLength()
+    {
+        var name = "  " + new string('p', CatalogLimits.ProductNameMaxLength + 1) + "  ";
+        using var client = factory.CreateAdminClient();
+
+        using var response = await client.PostAsJsonAsync(
+            ProductsUrl, new CreateProductRequest(1, name, 1m), TestContext.Current.CancellationToken);
+
+        await ProblemAssertions.AssertValidationProblemAsync(response, "ProductName");
     }
 
     [Theory]

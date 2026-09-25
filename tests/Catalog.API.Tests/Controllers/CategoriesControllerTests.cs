@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Catalog.API.Data;
 using Catalog.API.Dtos;
 using Catalog.API.Models;
 using Catalog.API.Tests.TestSupport;
@@ -127,6 +128,38 @@ public sealed class CategoriesControllerTests(CatalogApiFactory factory) : IClas
 
         var problem = await ProblemAssertions.AssertProblemAsync(response, HttpStatusCode.UnprocessableEntity);
         Assert.Contains(name, problem.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task CreateCategory_ShouldReturnCreatedWithTrimmedName_WhenOnlyPaddingExceedsMaxLength()
+    {
+        // The service stores the trimmed name: surrounding spaces must not count against the limit.
+        var name = $"Electronics {Guid.NewGuid():N}";
+        var padded = name + new string(' ', 95);
+        Assert.True(padded.Length > CatalogLimits.CategoryNameMaxLength);
+        using var client = factory.CreateAdminClient();
+
+        using var response = await client.PostAsJsonAsync(
+            CategoriesUrl, new CreateCategoryRequest(padded), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<CategoryResponse>(TestContext.Current.CancellationToken);
+        Assert.NotNull(created);
+        Assert.Equal(name, created.CategoryName);
+        Assert.True(await factory.WithDbContextAsync(dbContext =>
+            dbContext.Categories.AnyAsync(c => c.Id == created.Id && c.CategoryName == name, TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task CreateCategory_ShouldReturnValidationProblem_WhenTrimmedNameExceedsMaxLength()
+    {
+        var name = "  " + new string('c', CatalogLimits.CategoryNameMaxLength + 1) + "  ";
+        using var client = factory.CreateAdminClient();
+
+        using var response = await client.PostAsJsonAsync(
+            CategoriesUrl, new CreateCategoryRequest(name), TestContext.Current.CancellationToken);
+
+        await ProblemAssertions.AssertValidationProblemAsync(response, "CategoryName");
     }
 
     [Fact]

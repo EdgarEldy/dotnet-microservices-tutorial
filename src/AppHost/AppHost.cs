@@ -2,7 +2,10 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 // One PostgreSQL server, one database per business service: each service only ever
 // receives the connection string of its own database (database per service).
+// PostgreSQL 16, as the README specifies (Aspire's default image is newer). The tag must be
+// set before WithDataVolume(), which picks the data directory to mount from the image version.
 var postgres = builder.AddPostgres("postgres")
+    .WithImageTag("16")
     .WithDataVolume();
 
 var identityDb = postgres.AddDatabase("identity-db");

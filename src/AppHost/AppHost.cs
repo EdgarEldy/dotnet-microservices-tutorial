@@ -67,13 +67,14 @@ var notificationService = builder.AddProject<Projects.Notification_Worker>("noti
 
 // The single entry point, and the only service exposed outside Aspire's network. It resolves each
 // business service through its logical name and keeps the login rate limiter counters in Redis.
-// The order-api and notification-worker references are added once those branches are merged.
 builder.AddProject<Projects.ApiGateway>("api-gateway")
     .WithReference(redis)
     .WaitFor(redis)
     .WithReference(identityService)
     .WithReference(catalogService)
     .WithReference(customerService)
+    .WithReference(orderService)
+    .WithReference(notificationService)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
     .WithExternalHttpEndpoints();
 

@@ -22,6 +22,12 @@ public static class Extensions
     // (database, Kafka, ...) is a readiness concern: "can it serve traffic right now?".
     public const string LiveTag = "live";
 
+    // Name of both MassTransit's ActivitySource (MassTransit.Logging.DiagnosticHeaders
+    // .DefaultListenerName) and its Meter (MassTransit.Monitoring.InstrumentationOptions
+    // .MeterName) in 8.5.10. Kept as a literal so ServiceDefaults does not depend on the
+    // MassTransit package; a service without MassTransit simply never emits on it.
+    public const string MassTransitInstrumentationName = "MassTransit";
+
     private const string HealthEndpointsPrefix = "/health";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
@@ -60,11 +66,16 @@ public static class Extensions
             {
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    // MassTransit's send/publish/consume counters and durations
+                    .AddMeter(MassTransitInstrumentationName);
             })
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
+                    // MassTransit's produce/consume spans: the Kafka hops of the Saga join the
+                    // trace of the HTTP request that started it (W3C context in the headers)
+                    .AddSource(MassTransitInstrumentationName)
                     .AddAspNetCoreInstrumentation(options =>
                         // Health probes run every few seconds: keep them out of the traces
                         options.Filter = context => !context.Request.Path.StartsWithSegments(HealthEndpointsPrefix))

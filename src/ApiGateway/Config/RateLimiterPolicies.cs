@@ -66,8 +66,8 @@ public sealed class LoginRateLimiterPolicy(
 
     public RateLimitPartition<string> GetPartition(HttpContext httpContext)
     {
-        // The gateway is the system's edge: nothing (load balancer, CDN) sits in front of it, so
-        // RemoteIpAddress is the real client and no X-Forwarded-For header is trusted.
+        // RemoteIpAddress, restored from X-Forwarded-For by UseForwardedHeaders when a trusted
+        // proxy (ForwardedHeaders:TrustedProxies) sits in front of the gateway.
         var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownClient;
         var limit = options.Value;
 

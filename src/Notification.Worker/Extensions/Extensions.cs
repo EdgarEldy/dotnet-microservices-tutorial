@@ -25,6 +25,9 @@ public static class Extensions
 
         services.AddSingleton<IEmailNotification, EmailNotification>();
 
+        // Scoped: resolved in each Kafka consume scope, with that scope's topic producers.
+        services.AddScoped<IOrderNotificationService, OrderNotificationService>();
+
         builder.AddMessaging();
 
         return builder;

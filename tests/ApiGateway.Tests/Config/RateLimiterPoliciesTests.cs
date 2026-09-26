@@ -9,16 +9,70 @@ namespace ApiGateway.Tests.Config;
 /// attempts per client IP; past it the gateway answers 429 without reaching identity-api.
 /// Every test uses its own client IP, so the shared Redis counters never leak between tests.
 /// </summary>
-public sealed class RateLimiterPoliciesTests : IClassFixture<GatewayFactory>
+public sealed class RateLimiterPoliciesTests
+    : IClassFixture<GatewayFactory>, IClassFixture<TrustedProxyGatewayFactory>
 {
     private static int _nextClientIp;
 
     private readonly GatewayFactory _factory;
+    private readonly TrustedProxyGatewayFactory _behindProxy;
 
-    public RateLimiterPoliciesTests(GatewayFactory factory)
+    public RateLimiterPoliciesTests(GatewayFactory factory, TrustedProxyGatewayFactory behindProxy)
     {
         _factory = factory;
         _factory.ResetDownstreams();
+        _behindProxy = behindProxy;
+        _behindProxy.ResetDownstreams();
+    }
+
+    [Fact]
+    public async Task Login_ShouldGiveEachForwardedClientItsOwnBudget_WhenRequestsComeFromTrustedProxy()
+    {
+        var firstClient = CreateClientFrom(_behindProxy, TrustedProxyGatewayFactory.ProxyIp, NewClientIp());
+        var secondClient = CreateClientFrom(_behindProxy, TrustedProxyGatewayFactory.ProxyIp, NewClientIp());
+        await ExhaustLoginBudgetAsync(firstClient);
+
+        using var response = await PostAsync(secondClient, "/api/v1/Auth/Login");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_ShouldShareOneBudget_WhenUntrustedClientVariesForwardedFor()
+    {
+        await AssertForwardedForCannotBypassLimitAsync(_factory);
+    }
+
+    [Fact]
+    public async Task Login_ShouldShareOneBudget_WhenClientOtherThanTrustedProxyVariesForwardedFor()
+    {
+        await AssertForwardedForCannotBypassLimitAsync(_behindProxy);
+    }
+
+    // One connection address, a new X-Forwarded-For value on every attempt: the header is not
+    // trusted from that address, so every attempt lands in the same bucket.
+    private static async Task AssertForwardedForCannotBypassLimitAsync(GatewayFactory factory)
+    {
+        var clientIp = NewClientIp();
+
+        for (var attempt = 0; attempt < GatewayFactory.LoginPermitLimit; attempt++)
+        {
+            using var allowed = await PostAsync(CreateClientFrom(factory, clientIp, NewClientIp()), "/api/v1/Auth/Login");
+            Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        }
+
+        using var rejected = await PostAsync(CreateClientFrom(factory, clientIp, NewClientIp()), "/api/v1/Auth/Login");
+
+        await ProblemAssertions.AssertProblemAsync(rejected, HttpStatusCode.TooManyRequests);
+        Assert.Equal(GatewayFactory.LoginPermitLimit, factory.Identity.LogEntries.Count());
+    }
+
+    private static HttpClient CreateClientFrom(GatewayFactory factory, string connectionIp, string forwardedFor)
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(GatewayFactory.ClientIpHeader, connectionIp);
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", forwardedFor);
+        return client;
     }
 
     [Fact]

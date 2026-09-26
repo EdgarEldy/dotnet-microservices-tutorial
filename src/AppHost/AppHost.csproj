@@ -16,6 +16,7 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Kafka" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.Redis" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +24,7 @@
     <ProjectReference Include="..\Customer.API\Customer.API.csproj" />
     <ProjectReference Include="..\Order.API\Order.API.csproj" />
     <ProjectReference Include="..\Notification.Worker\Notification.Worker.csproj" />
+    <ProjectReference Include="..\ApiGateway\ApiGateway.csproj" />
   </ItemGroup>
 
 </Project>

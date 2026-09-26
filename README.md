@@ -642,10 +642,10 @@ Distributed tracing across the whole system - arguably the single most useful ad
 
 ### Tasks
 
-- [ ] Confirm every service's `ServiceDefaults`-provided OpenTelemetry pipeline is actually exporting - the Aspire Dashboard (opened automatically when `AppHost` runs) should show live traces without any extra exporter configuration
-- [ ] MassTransit's built-in `ActivitySource` diagnostics explicitly added to the OpenTelemetry pipeline (`ServiceDefaults`' default only instruments `HttpClient` and ASP.NET Core out of the box, not MassTransit), so Kafka hops appear in traces alongside HTTP hops
-- [ ] Verify trace propagation across **both** communication styles: a single trace should show `api-gateway → order-api → catalog-api` (via Refit) as one connected trace, and a separate trace should show `order-api → notification-worker` (via the Kafka message) as connected too - this must be verified by hand once in the dashboard, not assumed
-- [ ] A short walkthrough (in this branch's own notes) showing a captured trace in the Aspire Dashboard for a full order-creation request, annotated with what each span represents
+- [x] Confirm every service's `ServiceDefaults`-provided OpenTelemetry pipeline is actually exporting - the Aspire Dashboard (opened automatically when `AppHost` runs) should show live traces without any extra exporter configuration
+- [x] MassTransit's built-in `ActivitySource` diagnostics explicitly added to the OpenTelemetry pipeline (`ServiceDefaults`' default only instruments `HttpClient` and ASP.NET Core out of the box, not MassTransit), so Kafka hops appear in traces alongside HTTP hops
+- [x] Verify trace propagation across **both** communication styles: a single trace should show `api-gateway → order-api → catalog-api` (via Refit) as one connected trace, and a separate trace should show `order-api → notification-worker` (via the Kafka message) as connected too - this must be verified by hand once in the dashboard, not assumed
+- [x] A short walkthrough (in this branch's own notes) showing a captured trace in the Aspire Dashboard for a full order-creation request, annotated with what each span represents
 
 ## feature/resilience
 

@@ -7,6 +7,7 @@ on:
       - 'src/Order.API/**'
       - 'src/Contracts/**'
       - 'tests/Order.API.Tests/**'
+      - 'tests/Order.API.ResilienceTests/**'
       - 'src/Common.Lib/**'
       - 'src/ServiceDefaults/**'
       - 'Directory.Build.props'
@@ -18,6 +19,7 @@ on:
       - 'src/Order.API/**'
       - 'src/Contracts/**'
       - 'tests/Order.API.Tests/**'
+      - 'tests/Order.API.ResilienceTests/**'
       - 'src/Common.Lib/**'
       - 'src/ServiceDefaults/**'
       - 'Directory.Build.props'
@@ -44,3 +46,6 @@ jobs:
 
       - name: Build and test Order.API
         run: dotnet test --project tests/Order.API.Tests/Order.API.Tests.csproj --configuration Release
+
+      - name: Test the Order.API resilience pipeline (circuit breaker, fallback, timeouts)
+        run: dotnet test --project tests/Order.API.ResilienceTests/Order.API.ResilienceTests.csproj --configuration Release

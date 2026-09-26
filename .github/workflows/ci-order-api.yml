@@ -8,6 +8,8 @@ on:
       - 'src/Contracts/**'
       - 'tests/Order.API.Tests/**'
       - 'tests/Order.API.ResilienceTests/**'
+      - 'tests/Order.API.ContractTests/**'
+      - 'pacts/**'
       - 'src/Common.Lib/**'
       - 'src/ServiceDefaults/**'
       - 'Directory.Build.props'
@@ -20,6 +22,8 @@ on:
       - 'src/Contracts/**'
       - 'tests/Order.API.Tests/**'
       - 'tests/Order.API.ResilienceTests/**'
+      - 'tests/Order.API.ContractTests/**'
+      - 'pacts/**'
       - 'src/Common.Lib/**'
       - 'src/ServiceDefaults/**'
       - 'Directory.Build.props'
@@ -49,3 +53,18 @@ jobs:
 
       - name: Test the Order.API resilience pipeline (circuit breaker, fallback, timeouts)
         run: dotnet test --project tests/Order.API.ResilienceTests/Order.API.ResilienceTests.csproj --configuration Release
+
+      # order-api is the Pact consumer: regenerate its contracts from scratch (PactNet merges
+      # into an existing file, so a removed interaction would otherwise survive), then fail if
+      # they differ from the committed ones, which catalog-api and customer-api verify.
+      - name: Regenerate the order-api pact files
+        env:
+          PACT_DO_NOT_TRACK: 'true'
+        run: |
+          rm -f pacts/order-api-*.json
+          dotnet test --project tests/Order.API.ContractTests/Order.API.ContractTests.csproj --configuration Release
+
+      - name: Fail if the committed pact files are stale
+        run: |
+          git status --porcelain -- pacts/
+          test -z "$(git status --porcelain -- pacts/)"

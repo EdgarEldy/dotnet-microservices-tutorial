@@ -58,20 +58,28 @@ public static class YarpServiceDiscoveryConfig
         services.AddReverseProxy()
             .LoadFromMemory(Routes, Clusters)
             .AddServiceDiscoveryDestinationResolver()
-            .AddTransforms(context => context.AddResponseTransform(transform =>
+            .AddTransforms(context =>
             {
-                // A downstream response passes through untouched: the gateway never rewraps it,
-                // even when it is an error with an empty body. The status code pages only
-                // apply to the gateway's own errors (e.g. 502 when no destination answered,
-                // in which case ProxyResponse is null).
-                if (transform.ProxyResponse is not null
-                    && transform.HttpContext.Features.Get<IStatusCodePagesFeature>() is { } statusCodePages)
-                {
-                    statusCodePages.Enabled = false;
-                }
+                // Forward the client's Host header instead of the destination's: services build
+                // absolute URLs (the Location of a 201 CreatedAtAction) from it, and without this
+                // they would hand the client their internal address instead of the gateway's.
+                context.AddOriginalHost(true);
 
-                return ValueTask.CompletedTask;
-            }));
+                context.AddResponseTransform(transform =>
+                {
+                    // A downstream response passes through untouched: the gateway never rewraps
+                    // it, even when it is an error with an empty body. The status code pages only
+                    // apply to the gateway's own errors (e.g. 502 when no destination answered,
+                    // in which case ProxyResponse is null).
+                    if (transform.ProxyResponse is not null
+                        && transform.HttpContext.Features.Get<IStatusCodePagesFeature>() is { } statusCodePages)
+                    {
+                        statusCodePages.Enabled = false;
+                    }
+
+                    return ValueTask.CompletedTask;
+                });
+            });
 
         return services;
     }

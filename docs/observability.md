@@ -5,9 +5,11 @@ whole system, where to look in the Aspire Dashboard, and the two traces that pro
 propagation works for **both** communication styles (synchronous HTTP through Refit, and
 asynchronous Kafka messages through MassTransit).
 
-The captured traces are verified by hand, once, in the dashboard. Every section marked
-**TO VERIFY BY HAND, results pending** is where the captured trace (span tree, durations,
-screenshot or copied text) gets pasted after that run.
+The traces below were captured once, on a real run of the whole system (every service, real
+PostgreSQL 16, Kafka and Redis containers), for one order placed through the api-gateway. They
+were read from the Aspire Dashboard's telemetry API rather than copied from screenshots (see
+"Reading traces without a browser" at the end), so the span names and durations are the real
+ones.
 
 ## What is instrumented, and where
 
@@ -81,14 +83,21 @@ sending requests: services wait for their database and Kafka through `.WaitFor(.
 
 Through the api-gateway only (the address comes from the Resources page):
 
-1. `POST /api/v1/Auth/Register`, confirm the e-mail (the link is in identity-api's logs),
-   then `POST /api/v1/Auth/Login`: keep the access token.
+1. `POST /api/v1/Auth/Register`, then confirm the e-mail with
+   `GET /api/v1/Auth/ConfirmEmail?userId=...&token=...`. identity-api never sends mail and
+   notification-worker only logs a truncated token, so read the full token from the
+   `UserRegisteredEvent` itself, inside the Kafka container, on its internal listener
+   (the host-mapped port is not reachable from inside the container):
+   `docker exec <kafka-container> kafka-console-consumer --bootstrap-server localhost:9093
+   --topic identity-events.user-registered --from-beginning --timeout-ms 10000`.
+   Then `POST /api/v1/Auth/Login`: keep the access token.
 2. With an Admin token: create a category and a product in catalog-api
    (`POST /api/v1/Catalog/Categories`, `POST /api/v1/Catalog/Products`), or use the seeded
    sample data.
 3. With the user's token: `POST /api/v1/Customers` to create the caller's customer profile.
-4. `POST /api/v1/Orders` with an `Idempotency-Key` header, the `CustomerId` and one or more
-   `ProductId`s. This single request produces both traces below.
+4. `POST /api/v1/Orders` with an `Idempotency-Key` header and a body
+   `{"customerId": ..., "productId": ..., "quantity": ...}`. This single request produces
+   both traces below.
 
 ## Trace A: synchronous hops (api-gateway to order-api to catalog-api and customer-api)
 
@@ -135,8 +144,36 @@ What each span represents:
   the current trace context in its headers, committed by the same `SaveChangesAsync` as the
   order.
 
-**TO VERIFY BY HAND, results pending**: paste the captured trace A (span tree, trace ID,
-durations) here, and note any difference with the expected tree above.
+### Captured (2026-09-26)
+
+One `POST /api/v1/Orders` through the gateway (the first order after startup, so the durations
+include cold-start work) produced trace `8a050b50ed3378e45b8564bbf3c0e31e`. Its synchronous part:
+
+```
+api-gateway   POST /api/v1/Orders/{**catch-all}      server  4420 ms
+  api-gateway   POST                                 client  4419 ms  (YARP to order-api)
+    order-api     POST api/v1/Orders                 server  4371 ms
+      order-api     postgresql                       db         8 ms  (idempotency check)
+      order-api     GET                              client    63 ms  (Refit IProductClient)
+        catalog-api   GET api/v1/Catalog/Products/{id:int}  server  43 ms
+          catalog-api   postgresql                   db         3 ms
+      order-api     GET                              client   142 ms  (Refit ICustomerClient)
+        customer-api  GET api/v1/Customers/{id:int}  server   137 ms
+          customer-api  postgresql                   db         5 ms
+      order-api     postgresql (x4)                  db               (order, key, outbox, commit)
+      order-api     outbox send                      producer  83 ms  (MassTransit, writes OutboxMessage)
+```
+
+Differences with the expected tree above:
+
+- Span names follow the route templates as registered: the gateway's server span is named after
+  the YARP route (`POST /api/v1/Orders/{**catch-all}`), the services' after their controller
+  routes (`api/v1/Orders`, `{id:int}` constraints included). Npgsql names every database span
+  `postgresql`; the SQL text is in the `db.query.text` attribute.
+- The publish span is MassTransit's `outbox send`, not a `publish` span: with the bus outbox, the
+  publish writes the `OutboxMessage` row inside the request, exactly as intended.
+- Most of the 4.4 s is cold start inside order-api (first request after startup: JIT, EF Core
+  model and Refit client creation); the downstream calls themselves took 63 ms and 142 ms.
 
 ## Trace B: asynchronous hops (order-api to Kafka to notification-worker and back)
 
@@ -185,20 +222,67 @@ The time gap between the order creation response and the outbox delivery span is
 it is the outbox polling delay, and it is exactly what "the event is published only after the
 commit" looks like on a timeline.
 
-**TO VERIFY BY HAND, results pending**: paste the captured trace B (span tree, trace ID,
-whether it is the same trace as A or a linked one, durations) here, for the nominal path. Then
-repeat with the simulated failure trigger and paste the failure path's tree.
+### Captured (2026-09-26), nominal path
+
+The asynchronous hops are **in the same trace as trace A** (`8a050b50...`), not a separate
+linked trace: the trace context survived the outbox row, the PostgreSQL transport queue and
+both Kafka topics, so the whole Saga is one waterfall starting at the client's request.
+
+```
+order-api            outbox process                             consumer  73 ms  (outbox delivery, after commit)
+order-api            Contracts:OrderCreatedEvent send           producer  50 ms  (to the PostgreSQL transport queue)
+order-api            OrderEventsKafkaRelay receive              consumer 122 ms
+order-api            OrderEventsKafkaRelay process              consumer  69 ms
+  order-api            order-events.order-created send          producer  32 ms  (Kafka)
+notification-worker  notification-worker receive                consumer 115 ms  (Kafka, group notification-worker)
+notification-worker  notification-worker process                consumer 102 ms  (e-mail logged)
+  notification-worker  notification-events.order-confirmed send producer  32 ms  (Kafka)
+order-api            order-api receive                          consumer  56 ms  (Kafka, group order-api)
+order-api            order-api process                          consumer  49 ms
+  order-api            postgresql                               db         4 ms  (status Pending to Confirmed)
+```
+
+The order read back through the gateway went from `Pending` (the 201 response) to `Confirmed`
+about 10 seconds later, and `GET /api/v1/Orders/{id}` returned it with the product and the
+customer filled in by the two Refit calls.
+
+MassTransit names its Kafka spans after the topic on the producing side and after the consumer
+group on the receiving side (`notification-worker receive`, `order-api receive`).
+
+**Failure path not captured on this run.** Triggering it needs a product named "Broken Product",
+and creating one needs an Admin token (`CATALOG:WRITE`); the system seeds the Admin role but no
+Admin account, so this run did not exercise it. It is covered end to end, with a real Kafka
+broker, by `Notification.Worker.Tests` (the `NotificationFailedEvent` choreography) and
+`Order.API.Tests` (the `ConfirmationFailed` transition); the trace shape is the same as above,
+with `notification-events.notification-failed` in place of `notification-events.order-confirmed`.
 
 ## Checklist for the hand verification
 
-- [ ] Every resource (identity-api, catalog-api, customer-api, order-api, notification-worker,
+- [x] Every resource (identity-api, catalog-api, customer-api, order-api, notification-worker,
       api-gateway) shows traces, logs and metrics in the dashboard with no extra exporter
-      configuration.
-- [ ] No `/health/live` or `/health/ready` request appears in Traces.
-- [ ] Trace A: api-gateway, order-api, catalog-api and customer-api spans in one trace.
-- [ ] Trace B: order-api produce, notification-worker consume, outcome produce and order-api
-      consume connected by trace context, nominal path.
-- [ ] Trace B, simulated failure path: `NotificationFailedEvent` and the
-      `ConfirmationFailed` update connected the same way.
-- [ ] MassTransit metrics (`messaging.masstransit.*`) visible for order-api and
-      notification-worker.
+      configuration (all six report traces, logs and metrics).
+- [x] No `/health/live` or `/health/ready` request appears in Traces (0 health spans among the
+      271 captured).
+- [x] Trace A: api-gateway, order-api, catalog-api and customer-api spans in one trace.
+- [x] Trace B: order-api produce, notification-worker consume, outcome produce and order-api
+      consume connected by trace context, nominal path (same trace as A).
+- [ ] Trace B, simulated failure path: not captured on this run (no Admin account to create
+      the "Broken Product"); covered by the Kafka integration tests, see above.
+- [ ] MassTransit metrics (`messaging.masstransit.*`): order-api and notification-worker do
+      report metrics, but the telemetry API used here only serves traces, logs and resources,
+      so the instrument names were not read programmatically. Check the Metrics page by hand.
+
+## Reading traces without a browser
+
+The dashboard exposes a telemetry HTTP API (`/api/telemetry/resources`, `/api/telemetry/traces`,
+OTLP JSON), protected by an API key. With the AppHost started directly, the dashboard only reads
+the settings AppHost passes to it, so the key is given through a key-per-file configuration
+folder that AppHost forwards (`ASPIRE_DASHBOARD_FILE_CONFIG_DIRECTORY`): one file per setting,
+named `Dashboard__Api__Enabled` (`true`), `Dashboard__Api__AuthMode` (`ApiKey`) and
+`Dashboard__Api__PrimaryApiKey` (a random value, never committed), then:
+
+```bash
+curl -H "X-API-Key: <key>" "http://localhost:15225/api/telemetry/traces?limit=200"
+```
+
+Keep that folder outside the repository.

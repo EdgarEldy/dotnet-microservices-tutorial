@@ -3,8 +3,10 @@ using Confluent.Kafka;
 using Contracts;
 using FluentValidation;
 using MassTransit;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Order.API.Clients;
+using Order.API.Clients.Fallbacks;
 using Order.API.Consumers;
 using Order.API.Data;
 using Order.API.Filters;
@@ -50,6 +52,9 @@ public static class Extensions
         services.AddValidatorsFromAssemblyContaining<Program>();
 
         services.AddProblemDetails();
+        // Handlers run in registration order: the 503 of an unavailable downstream service first,
+        // then Common.Lib's handler for everything else.
+        services.AddExceptionHandler<DownstreamServiceUnavailableExceptionHandler>();
         services.AddExceptionHandler<GlobalExceptionHandler>();
 
         services.AddControllers(options => options.Filters.Add<ValidationFilter>());
@@ -63,14 +68,22 @@ public static class Extensions
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddTransient<ForwardAccessTokenHandler>();
 
-        // ServiceDefaults already adds service discovery and the standard resilience handler to
-        // every HttpClient; feature/resilience tunes the pipeline of these two clients.
+        builder.Services.AddOptions<DownstreamResilienceOptions>()
+            .BindConfiguration(DownstreamResilienceOptions.SectionName)
+            .ValidateOnStart();
+        builder.Services.AddSingleton<IValidateOptions<DownstreamResilienceOptions>, DownstreamResilienceOptionsValidator>();
+        builder.Services.AddSingleton<ICircuitBreakerMonitor, CircuitBreakerMonitor>();
+
+        // ServiceDefaults already adds service discovery to every HttpClient. The resilience
+        // pipeline goes before the token handler, so every retry sends the caller's token again.
         builder.Services.AddRefitGeneratedClient<IProductClient>()
             .ConfigureHttpClient(client => client.BaseAddress = new Uri(CatalogBaseAddress))
+            .AddDownstreamResilience(DownstreamServices.CatalogApi)
             .AddHttpMessageHandler<ForwardAccessTokenHandler>();
 
         builder.Services.AddRefitGeneratedClient<ICustomerClient>()
             .ConfigureHttpClient(client => client.BaseAddress = new Uri(CustomerBaseAddress))
+            .AddDownstreamResilience(DownstreamServices.CustomerApi)
             .AddHttpMessageHandler<ForwardAccessTokenHandler>();
     }
 

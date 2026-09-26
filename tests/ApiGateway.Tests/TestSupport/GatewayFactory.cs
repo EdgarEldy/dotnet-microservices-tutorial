@@ -20,7 +20,7 @@ namespace ApiGateway.Tests.TestSupport;
 /// logical name (https+http://catalog-api) to its WireMock server through the "services:*"
 /// configuration keys AppHost would otherwise inject. Shared by the tests of one class.
 /// </summary>
-public sealed class GatewayFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class GatewayFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     /// <summary>Login attempts allowed per client IP and window in the tests.</summary>
     public const int LoginPermitLimit = 3;
@@ -84,15 +84,26 @@ public sealed class GatewayFactory : WebApplicationFactory<Program>, IAsyncLifet
         return client;
     }
 
+    /// <summary>
+    /// Extra settings read while Program registers its services, such as
+    /// ForwardedHeaders:TrustedProxies. None by default.
+    /// </summary>
+    protected virtual IEnumerable<KeyValuePair<string, string?>> AdditionalHostSettings => [];
+
     protected override IHost CreateHost(IHostBuilder builder)
     {
         // Read while Program registers its services (the Aspire Redis client integration), so it
         // must be host configuration; appsettings.json never sets it.
-        builder.ConfigureHostConfiguration(configuration => configuration.AddInMemoryCollection(
-            new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:redis"] = _redis.GetConnectionString(),
-            }));
+        var settings = new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:redis"] = _redis.GetConnectionString(),
+        };
+        foreach (var (key, value) in AdditionalHostSettings)
+        {
+            settings[key] = value;
+        }
+
+        builder.ConfigureHostConfiguration(configuration => configuration.AddInMemoryCollection(settings));
 
         return base.CreateHost(builder);
     }
@@ -132,6 +143,8 @@ public sealed class GatewayFactory : WebApplicationFactory<Program>, IAsyncLifet
 
     private sealed class ClientIpStartupFilter : IStartupFilter
     {
+        // A startup filter wraps the whole pipeline Program builds, so the address is the
+        // connection's own before UseForwardedHeaders reads it, as a real socket's would be.
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
         {
             app.Use(async (HttpContext context, RequestDelegate nextMiddleware) =>

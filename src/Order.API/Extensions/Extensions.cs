@@ -65,11 +65,11 @@ public static class Extensions
 
         // ServiceDefaults already adds service discovery and the standard resilience handler to
         // every HttpClient; feature/resilience tunes the pipeline of these two clients.
-        builder.Services.AddRefitClient<IProductClient>()
+        builder.Services.AddRefitGeneratedClient<IProductClient>()
             .ConfigureHttpClient(client => client.BaseAddress = new Uri(CatalogBaseAddress))
             .AddHttpMessageHandler<ForwardAccessTokenHandler>();
 
-        builder.Services.AddRefitClient<ICustomerClient>()
+        builder.Services.AddRefitGeneratedClient<ICustomerClient>()
             .ConfigureHttpClient(client => client.BaseAddress = new Uri(CustomerBaseAddress))
             .AddHttpMessageHandler<ForwardAccessTokenHandler>();
     }
@@ -104,20 +104,22 @@ public static class Extensions
                 o.UseBusOutbox();
             });
 
-            x.AddConsumer<OrderEventsKafkaRelay>();
-
-            x.UsingPostgres((context, cfg) =>
+            // Kafka down: quick retries in process, then redelivery from the SQL queue, then the
+            // relay's _error queue in order-db for manual redelivery. Configured on the relay only:
+            // at bus level it would also apply to the Kafka topic endpoints below, and Kafka cannot
+            // reschedule a message, so an exhausted Kafka consumer would crash instead of failing
+            // in a controlled way.
+            x.AddConsumer<OrderEventsKafkaRelay>(relay =>
             {
-                // Kafka down: quick retries in process, then redelivery from the SQL queue, then the
-                // relay's _error queue in order-db for manual redelivery.
-                cfg.UseDelayedRedelivery(redelivery => redelivery.Intervals(
+                relay.UseDelayedRedelivery(redelivery => redelivery.Intervals(
                     TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(5),
                     TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(30), TimeSpan.FromHours(1),
                     TimeSpan.FromHours(2), TimeSpan.FromHours(4), TimeSpan.FromHours(8)));
-                cfg.UseMessageRetry(retry => retry.Intervals(
+                relay.UseMessageRetry(retry => retry.Intervals(
                     TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15)));
-                cfg.ConfigureEndpoints(context);
             });
+
+            x.UsingPostgres((context, cfg) => cfg.ConfigureEndpoints(context));
 
             x.AddRider(rider =>
             {

@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Microsoft.Net.Http.Headers;
 
 namespace Order.API.Clients;
@@ -12,10 +13,10 @@ public sealed class ForwardAccessTokenHandler(IHttpContextAccessor httpContextAc
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var authorization = httpContextAccessor.HttpContext?.Request.Headers[HeaderNames.Authorization].ToString();
-        if (!string.IsNullOrEmpty(authorization))
-        {
-            request.Headers.TryAddWithoutValidation(HeaderNames.Authorization, authorization);
-        }
+
+        // Set, never appended: the resilience handler runs this handler again on every retry of
+        // the same request message, and a second value would turn the retry into a 401.
+        request.Headers.Authorization = AuthenticationHeaderValue.TryParse(authorization, out var header) ? header : null;
 
         return base.SendAsync(request, cancellationToken);
     }

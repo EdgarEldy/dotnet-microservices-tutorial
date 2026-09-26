@@ -225,8 +225,11 @@ public sealed class OrderService(
         {
             return await call();
         }
-        catch (Exception exception) when (exception is ApiException or HttpRequestException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            // Any failure of the downstream call: an HTTP error (ApiException), a network error, or
+            // the resilience pipeline refusing the call (open circuit, timeout). A request aborted by
+            // the client (OperationCanceledException) still propagates.
             logger.LogWarning(exception, "Order details: {Service} could not provide its part", serviceName);
             return null;
         }

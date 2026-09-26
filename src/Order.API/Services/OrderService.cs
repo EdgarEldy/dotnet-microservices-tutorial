@@ -198,6 +198,11 @@ public sealed class OrderService(
             throw new BusinessRuleException(
                 $"Product with id '{productId}' could not be validated (catalog-api answered {(int)exception.StatusCode}).", exception);
         }
+        catch (Exception exception) when (IsUnreachable(exception))
+        {
+            throw new BusinessRuleException(
+                $"Product with id '{productId}' could not be validated: catalog-api is unreachable.", exception);
+        }
     }
 
     private async Task<CustomerDto> GetCustomerAsync(int customerId, CancellationToken cancellationToken)
@@ -216,7 +221,19 @@ public sealed class OrderService(
             throw new BusinessRuleException(
                 $"Customer with id '{customerId}' could not be validated (customer-api answered {(int)exception.StatusCode}).", exception);
         }
+        catch (Exception exception) when (IsUnreachable(exception))
+        {
+            throw new BusinessRuleException(
+                $"Customer with id '{customerId}' could not be validated: customer-api is unreachable.", exception);
+        }
     }
+
+    /// <summary>
+    /// The call never got an HTTP answer: Refit wraps network errors and resilience-pipeline
+    /// rejections (timeout, open circuit) in ApiRequestException, and they can also surface raw.
+    /// </summary>
+    private static bool IsUnreachable(Exception exception) =>
+        exception is ApiRequestException or HttpRequestException or TimeoutException or Polly.ExecutionRejectedException;
 
     private async Task<T?> TryGetAsync<T>(Func<Task<T>> call, string serviceName)
         where T : class

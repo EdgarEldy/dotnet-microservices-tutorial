@@ -73,4 +73,11 @@ public sealed class OrdersController(IOrderService orderService) : ControllerBas
         var order = await orderService.CreateAsync(User.GetUserId(), key, request, cancellationToken);
         return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
     }
+
+    /// <summary>The current state of the circuit breakers guarding catalog-api and customer-api.</summary>
+    [HttpGet("Diagnostics/Circuits")]
+    [Authorize(Roles = OrderPermissions.AdminRole)]
+    [ProducesResponseType(typeof(IReadOnlyList<CircuitStateResponse>), StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<CircuitStateResponse>> GetCircuits([FromServices] ICircuitBreakerMonitor circuitBreakerMonitor) =>
+        Ok(circuitBreakerMonitor.GetCircuits());
 }

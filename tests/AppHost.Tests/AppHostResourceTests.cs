@@ -105,6 +105,8 @@ public sealed class AppHostResourceTests : IAsyncLifetime
     [InlineData("identity-api")]
     [InlineData("catalog-api")]
     [InlineData("customer-api")]
+    [InlineData("order-api")]
+    [InlineData("notification-worker")]
     public void AddProject_ShouldReferenceResource_WhenApiGatewayIsDeclared(string resourceName)
     {
         // README (feature/api-gateway): the gateway reaches Redis and every business service

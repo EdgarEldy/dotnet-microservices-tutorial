@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3.mtp-v2" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="PactNet" />
     <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 

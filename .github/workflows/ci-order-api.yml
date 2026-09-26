@@ -1,0 +1,46 @@
+name: CI - order-api
+
+on:
+  push:
+    branches: [develop, master]
+    paths:
+      - 'src/Order.API/**'
+      - 'src/Contracts/**'
+      - 'tests/Order.API.Tests/**'
+      - 'src/Common.Lib/**'
+      - 'src/ServiceDefaults/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/ci-order-api.yml'
+  pull_request:
+    paths:
+      - 'src/Order.API/**'
+      - 'src/Contracts/**'
+      - 'tests/Order.API.Tests/**'
+      - 'src/Common.Lib/**'
+      - 'src/ServiceDefaults/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/ci-order-api.yml'
+
+jobs:
+  # order-api compiles against Common.Lib: only build it once Common.Lib is green.
+  common-lib:
+    uses: ./.github/workflows/ci-common-lib.yml
+
+  build:
+    needs: common-lib
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build and test Order.API
+        run: dotnet test --project tests/Order.API.Tests/Order.API.Tests.csproj --configuration Release

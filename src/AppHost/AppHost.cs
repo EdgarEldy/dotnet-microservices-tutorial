@@ -17,6 +17,9 @@ var orderDb = postgres.AddDatabase("order-db");
 // identity-events topics.
 var kafka = builder.AddKafka("kafka");
 
+// Redis, the shared store of api-gateway's distributed rate limiter (login attempts per client IP).
+var redis = builder.AddRedis("redis");
+
 // The HMAC-SHA256 key identity-api signs its JWTs with. Generated on the first run and persisted
 // in this project's user secrets, so no key is ever committed. Every service that validates those
 // tokens (api-gateway, and the business services as they are added) receives this same parameter
@@ -29,7 +32,7 @@ var jwtSigningKey = builder.AddParameter(
 
 // Each business service is added below, in its own feature branch, with
 // .WithReference(...) to the resources it uses.
-builder.AddProject<Projects.Identity_API>("identity-api")
+var identityService = builder.AddProject<Projects.Identity_API>("identity-api")
     .WithReference(identityDb)
     .WaitFor(identityDb)
     .WithReference(kafka)
@@ -61,5 +64,17 @@ var orderService = builder.AddProject<Projects.Order_API>("order-api")
 var notificationService = builder.AddProject<Projects.Notification_Worker>("notification-worker")
     .WithReference(kafka)
     .WaitFor(kafka);
+
+// The single entry point, and the only service exposed outside Aspire's network. It resolves each
+// business service through its logical name and keeps the login rate limiter counters in Redis.
+// The order-api and notification-worker references are added once those branches are merged.
+builder.AddProject<Projects.ApiGateway>("api-gateway")
+    .WithReference(redis)
+    .WaitFor(redis)
+    .WithReference(identityService)
+    .WithReference(catalogService)
+    .WithReference(customerService)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey)
+    .WithExternalHttpEndpoints();
 
 builder.Build().Run();

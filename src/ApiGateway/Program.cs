@@ -15,6 +15,10 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+// Restores the client IP from X-Forwarded-For, for trusted proxies only, before the rate limiter
+// partitions by it.
+app.UseForwardedHeaders();
+
 app.UseRateLimiter();
 
 app.UseMiddleware<JwtValidationMiddleware>();

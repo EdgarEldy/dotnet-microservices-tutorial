@@ -6,6 +6,8 @@ on:
     paths:
       - 'src/Customer.API/**'
       - 'tests/Customer.API.Tests/**'
+      # order-api's committed contract: a consumer change re-verifies this provider
+      - 'pacts/order-api-customer-api.json'
       - 'src/Common.Lib/**'
       - 'src/ServiceDefaults/**'
       - 'Directory.Build.props'
@@ -16,6 +18,8 @@ on:
     paths:
       - 'src/Customer.API/**'
       - 'tests/Customer.API.Tests/**'
+      # order-api's committed contract: a consumer change re-verifies this provider
+      - 'pacts/order-api-customer-api.json'
       - 'src/Common.Lib/**'
       - 'src/ServiceDefaults/**'
       - 'Directory.Build.props'
@@ -40,5 +44,8 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Includes PactTests: customer-api verified against order-api's committed pact file.
       - name: Build and test Customer.API
+        env:
+          PACT_DO_NOT_TRACK: 'true'
         run: dotnet test --project tests/Customer.API.Tests/Customer.API.Tests.csproj --configuration Release

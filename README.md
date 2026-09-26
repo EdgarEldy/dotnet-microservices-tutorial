@@ -613,16 +613,16 @@ New service - this tutorial's only consumer-only, database-less microservice, th
 
 ### Tasks
 
-- [ ] `OrderCreatedEventConsumer` (MassTransit `IConsumer<OrderCreatedEvent>`): receives the event, calls `IEmailNotification.Worker` (which, for this tutorial, logs a message instead of sending a real email)
-- [ ] `UserRegisteredEventConsumer`: receives `UserRegisteredEvent` on the `identity-events` topic, sends the activation e-mail (logged, same as above)
-- [ ] `PasswordResetRequestedEventConsumer`: receives `PasswordResetRequestedEvent` on the same topic, sends the password-reset e-mail
-- [ ] `IEmailNotification.Worker` is shared across all three consumers - one service, one place that "sends" e-mail, regardless of which business event triggered it
-- [ ] On success, `OrderCreatedEventConsumer` publishes `OrderConfirmedEvent` (carrying the `OrderId`) onto `notification-events` - the Saga's nominal-path outcome, symmetric with the compensating event below, so `order-api` always eventually hears back one way or the other, never left silently `Pending`
-- [ ] Deliberately simulated failure path, on the order flow only: if the "notification" fails (configurable, e.g. a specific product name triggers a simulated failure for demo purposes), the consumer publishes a `NotificationFailedEvent` back onto `notification-events`, rather than silently swallowing the error
-- [ ] This is the tutorial's **choreographed Saga**, end to end - see [The Saga in detail](#the-saga-in-detail-order-confirmation). No central orchestrator, no distributed transaction. The account-related events are simpler: fire-and-forget, no compensating action, since a failed activation e-mail doesn't need to undo the account creation
-- [ ] Depends on `Common.Lib`
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Notification_Worker>("notification-worker").WithReference(kafka)` (the `kafka` resource itself, `builder.AddKafka("kafka")`, was declared once in `feature/infrastructure`)
-- [ ] Tests: a Testcontainers Kafka test verifying the full order-flow choreography in both directions - publish `OrderCreatedEvent` → consumer reacts → nominal case: `OrderConfirmedEvent` published → (in `order-api`'s own test suite) `Status` becomes `Confirmed`; failure case: simulated failure → `NotificationFailedEvent` published → `Status` becomes `ConfirmationFailed` - plus a simpler test confirming `UserRegisteredEvent`/`PasswordResetRequestedEvent` trigger the expected `IEmailNotification.Worker` call
+- [x] `OrderCreatedEventConsumer` (MassTransit `IConsumer<OrderCreatedEvent>`): receives the event, calls `IEmailNotification.Worker` (which, for this tutorial, logs a message instead of sending a real email)
+- [x] `UserRegisteredEventConsumer`: receives `UserRegisteredEvent` on the `identity-events` topic, sends the activation e-mail (logged, same as above)
+- [x] `PasswordResetRequestedEventConsumer`: receives `PasswordResetRequestedEvent` on the same topic, sends the password-reset e-mail
+- [x] `IEmailNotification.Worker` is shared across all three consumers - one service, one place that "sends" e-mail, regardless of which business event triggered it
+- [x] On success, `OrderCreatedEventConsumer` publishes `OrderConfirmedEvent` (carrying the `OrderId`) onto `notification-events` - the Saga's nominal-path outcome, symmetric with the compensating event below, so `order-api` always eventually hears back one way or the other, never left silently `Pending`
+- [x] Deliberately simulated failure path, on the order flow only: if the "notification" fails (configurable, e.g. a specific product name triggers a simulated failure for demo purposes), the consumer publishes a `NotificationFailedEvent` back onto `notification-events`, rather than silently swallowing the error
+- [x] This is the tutorial's **choreographed Saga**, end to end - see [The Saga in detail](#the-saga-in-detail-order-confirmation). No central orchestrator, no distributed transaction. The account-related events are simpler: fire-and-forget, no compensating action, since a failed activation e-mail doesn't need to undo the account creation
+- [x] Depends on `Common.Lib`
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Notification_Worker>("notification-worker").WithReference(kafka)` (the `kafka` resource itself, `builder.AddKafka("kafka")`, was declared once in `feature/infrastructure`)
+- [x] Tests: a Testcontainers Kafka test verifying the full order-flow choreography in both directions - publish `OrderCreatedEvent` → consumer reacts → nominal case: `OrderConfirmedEvent` published → (in `order-api`'s own test suite) `Status` becomes `Confirmed`; failure case: simulated failure → `NotificationFailedEvent` published → `Status` becomes `ConfirmationFailed` - plus a simpler test confirming `UserRegisteredEvent`/`PasswordResetRequestedEvent` trigger the expected `IEmailNotification.Worker` call
 
 ## feature/api-gateway
 

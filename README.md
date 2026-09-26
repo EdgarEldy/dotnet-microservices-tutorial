@@ -630,11 +630,11 @@ Single entry point. Depends on every business service already being registered.
 
 ### Tasks
 
-- [ ] `Yarp.ReverseProxy`, route definitions per service, each cluster destination expressed as an Aspire-resolved logical address (`https+http://catalog-api`, etc.) rather than a fixed host:port - no manual refresh loop needed, since every reference was already declared once in `AppHost`
-- [ ] `JwtValidationMiddleware`: validates the JWT's signature/expiration on every route except `/api/v1/Auth/Register`, `/api/v1/Auth/Login`, `/api/v1/Auth/ConfirmEmail`
-- [ ] `RateLimiterPolicies`: Redis-backed distributed rate limiter applied to `/api/v1/Auth/Login`, protecting `identity-api` against brute-force attempts (a fixed number of requests per second per client IP, configurable)
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.ApiGateway>("api-gateway").WithReference(redis).WithReference(identityService).WithReference(catalogService).WithReference(customerService).WithReference(orderService).WithReference(notificationService).WithExternalHttpEndpoints()` - the only service Aspire exposes outside its own network
-- [ ] Tests: routing to a mocked downstream, JWT rejection on a protected route without a token, pass-through on public routes, rate limiter returning 429 past the configured threshold
+- [x] `Yarp.ReverseProxy`, route definitions per service, each cluster destination expressed as an Aspire-resolved logical address (`https+http://catalog-api`, etc.) rather than a fixed host:port - no manual refresh loop needed, since every reference was already declared once in `AppHost`
+- [x] `JwtValidationMiddleware`: validates the JWT's signature/expiration on every route except `/api/v1/Auth/Register`, `/api/v1/Auth/Login`, `/api/v1/Auth/ConfirmEmail`
+- [x] `RateLimiterPolicies`: Redis-backed distributed rate limiter applied to `/api/v1/Auth/Login`, protecting `identity-api` against brute-force attempts (a fixed number of requests per second per client IP, configurable)
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.ApiGateway>("api-gateway").WithReference(redis).WithReference(identityService).WithReference(catalogService).WithReference(customerService).WithReference(orderService).WithReference(notificationService).WithExternalHttpEndpoints()` - the only service Aspire exposes outside its own network
+- [x] Tests: routing to a mocked downstream, JWT rejection on a protected route without a token, pass-through on public routes, rate limiter returning 429 past the configured threshold
 
 ## feature/observability
 

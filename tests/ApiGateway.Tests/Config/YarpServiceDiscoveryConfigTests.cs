@@ -91,6 +91,24 @@ public sealed class YarpServiceDiscoveryConfigTests : IClassFixture<GatewayFacto
         Assert.Equal("?page=1&size=10", Assert.Single(_factory.Catalog.LogEntries).RequestMessage!.RawQuery);
     }
 
+    [Fact]
+    public async Task MapReverseProxy_ShouldForwardClientHost_WhenRequestIsProxied()
+    {
+        // Services build absolute URLs (the Location of a 201) from the Host header: it must be
+        // the gateway's public host, never the service's internal address.
+        _factory.Order
+            .Given(Request.Create().WithPath("/api/v1/Orders").UsingPost())
+            .AtPriority(1)
+            .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.Created));
+        var client = _factory.CreateAuthenticatedClient();
+
+        using var response = await client.PostAsync("/api/v1/Orders", new StringContent("{}"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var forwarded = Assert.Single(_factory.Order.LogEntries).RequestMessage!;
+        Assert.Equal(client.BaseAddress!.Authority, Assert.Single(forwarded.Headers!["Host"]));
+    }
+
     [Theory]
     [InlineData("/api/v1/Unknown")]
     [InlineData("/api/v2/Catalog/Products")]

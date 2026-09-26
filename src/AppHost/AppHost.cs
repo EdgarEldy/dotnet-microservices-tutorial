@@ -46,4 +46,15 @@ var customerService = builder.AddProject<Projects.Customer_API>("customer-api")
     .WaitFor(customerDb)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
+// order-api resolves https+http://catalog-api and https+http://customer-api through these two
+// references: service discovery only knows the services a project was given a reference to.
+var orderService = builder.AddProject<Projects.Order_API>("order-api")
+    .WithReference(orderDb)
+    .WaitFor(orderDb)
+    .WithReference(kafka)
+    .WaitFor(kafka)
+    .WithReference(catalogService)
+    .WithReference(customerService)
+    .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
+
 builder.Build().Run();

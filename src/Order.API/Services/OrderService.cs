@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.ExceptionServices;
 using Common.Lib.Dtos;
 using Common.Lib.Exceptions;
 using Contracts;
@@ -7,6 +8,7 @@ using MassTransit.EntityFrameworkCoreIntegration;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Order.API.Clients;
+using Order.API.Clients.Fallbacks;
 using Order.API.Data;
 using Order.API.Dtos;
 using Order.API.Models;
@@ -198,6 +200,11 @@ public sealed class OrderService(
             throw new BusinessRuleException(
                 $"Product with id '{productId}' could not be validated (catalog-api answered {(int)exception.StatusCode}).", exception);
         }
+        catch (Exception exception) when (DownstreamServiceUnavailableException.FindIn(exception) is { } unavailable)
+        {
+            ExceptionDispatchInfo.Throw(unavailable);
+            throw;
+        }
         catch (Exception exception) when (IsUnreachable(exception))
         {
             throw new BusinessRuleException(
@@ -221,6 +228,11 @@ public sealed class OrderService(
             throw new BusinessRuleException(
                 $"Customer with id '{customerId}' could not be validated (customer-api answered {(int)exception.StatusCode}).", exception);
         }
+        catch (Exception exception) when (DownstreamServiceUnavailableException.FindIn(exception) is { } unavailable)
+        {
+            ExceptionDispatchInfo.Throw(unavailable);
+            throw;
+        }
         catch (Exception exception) when (IsUnreachable(exception))
         {
             throw new BusinessRuleException(
@@ -229,8 +241,10 @@ public sealed class OrderService(
     }
 
     /// <summary>
-    /// The call never got an HTTP answer: Refit wraps network errors and resilience-pipeline
-    /// rejections (timeout, open circuit) in ApiRequestException, and they can also surface raw.
+    /// The call never got an HTTP answer and the resilience pipeline did not report it either (its
+    /// fallback turns an open circuit, a timeout or exhausted retries into a 503, handled above):
+    /// for instance catalog-api's endpoint could not be resolved. Refit wraps such errors in
+    /// ApiRequestException, and they can also surface raw.
     /// </summary>
     private static bool IsUnreachable(Exception exception) =>
         exception is ApiRequestException or HttpRequestException or TimeoutException or Polly.ExecutionRejectedException;

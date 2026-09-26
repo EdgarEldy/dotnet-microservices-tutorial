@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Http.Resilience;
 using Npgsql;
 using Order.API.Data;
 using Order.API.Messaging;
@@ -37,9 +36,10 @@ public sealed class OrderApiFixture : WebApplicationFactory<Program>, IAsyncLife
     public static readonly TimeSpan KafkaTimeout = TimeSpan.FromSeconds(60);
 
     /// <summary>
-    /// The standard resilience pipeline stays in place (retries, attempt timeout), only faster: a
-    /// retried 5xx costs milliseconds instead of the default exponential 2 s backoff, and a hung
-    /// downstream call gives up after 2 s per attempt instead of 10 s.
+    /// order-api's downstream pipeline stays in place (fallback, retry, timeouts), only faster: one
+    /// retry after 10 ms, 2 s per attempt. Its circuit breaker never opens here (MinimumThroughput
+    /// out of reach): the host is shared by every test, so one test's failures must not turn the
+    /// next ones into 503. The breaker itself is covered by Order.API.ResilienceTests.
     /// </summary>
     public static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(2);
 
@@ -95,15 +95,14 @@ public sealed class OrderApiFixture : WebApplicationFactory<Program>, IAsyncLife
         builder.UseSetting("services:catalog-api:http:0", Catalog.Url);
         builder.UseSetting("services:customer-api:http:0", Customers.Url);
 
+        builder.UseSetting("Resilience:Downstream:MinimumThroughput", int.MaxValue.ToString(CultureInfo.InvariantCulture));
+        builder.UseSetting("Resilience:Downstream:RetryCount", "1");
+        builder.UseSetting("Resilience:Downstream:RetryDelay", "00:00:00.010");
+        builder.UseSetting("Resilience:Downstream:AttemptTimeout", AttemptTimeout.ToString("c", CultureInfo.InvariantCulture));
+        builder.UseSetting("Resilience:Downstream:TotalTimeout", "00:00:10");
+
         builder.ConfigureTestServices(services =>
-        {
-            services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(CommitGate));
-            services.ConfigureAll<HttpStandardResilienceOptions>(options =>
-            {
-                options.Retry.Delay = TimeSpan.FromMilliseconds(10);
-                options.AttemptTimeout.Timeout = AttemptTimeout;
-            });
-        });
+            services.ConfigureDbContext<AppDbContext>(options => options.AddInterceptors(CommitGate)));
     }
 
     public override async ValueTask DisposeAsync()

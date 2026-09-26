@@ -11,8 +11,8 @@ namespace Order.API.Tests.Controllers;
 
 /// <summary>
 /// /api/v1/Orders through the real pipeline, with catalog-api and customer-api stubbed by
-/// WireMock.Net behind service discovery: synchronous validation (success and every failure mapped
-/// to a 422 ProblemDetails), the caller's token forwarded, idempotent creation, owner-scoped reads
+/// WireMock.Net behind service discovery: synchronous validation (success, a missing resource as a
+/// 422, an unavailable service as a 503 ProblemDetails), the caller's token forwarded, idempotent creation, owner-scoped reads
 /// and the API Composition of GET by id.
 /// </summary>
 [Collection(OrderApiCollection.Name)]
@@ -77,7 +77,7 @@ public sealed class OrdersControllerTests(OrderApiFixture fixture)
     [Theory]
     [InlineData("catalog-api")]
     [InlineData("customer-api")]
-    public async Task CreateOrder_ShouldReturnUnprocessableEntity_WhenDownstreamServiceReturnsServerError(string failingService)
+    public async Task CreateOrder_ShouldReturnServiceUnavailable_WhenDownstreamServiceReturnsServerError(string failingService)
     {
         var ct = TestContext.Current.CancellationToken;
         var arranged = Arrange("downstream-500", stubCustomer: failingService != "customer-api");
@@ -94,14 +94,18 @@ public sealed class OrdersControllerTests(OrderApiFixture fixture)
 
         var response = await PostAsync(client, arranged.Marker, new CreateOrderRequest(arranged.CustomerId, arranged.ProductId, 1), ct);
 
-        // Never a raw exception or a 500: a clear business error, and nothing persisted.
-        var problem = await ProblemAssertions.AssertProblemAsync(response, HttpStatusCode.UnprocessableEntity);
-        Assert.Contains("500", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        // Still failing after the retry: never a raw exception or a 500, but a 503 naming the
+        // unavailable service, and nothing persisted.
+        var problem = await ProblemAssertions.AssertProblemAsync(response, HttpStatusCode.ServiceUnavailable);
+        var detail = problem.GetProperty("detail").GetString();
+        var serviceName = failingService == "catalog-api" ? "product service" : "customer service";
+        Assert.Contains($"{serviceName} is unavailable", detail, StringComparison.Ordinal);
+        Assert.Contains("500", detail, StringComparison.Ordinal);
         Assert.Equal(0, await fixture.CountCommittedAsync(Sql.OrdersForCustomer, arranged.CustomerIdText));
     }
 
     [Fact]
-    public async Task CreateOrder_ShouldReturnUnprocessableEntity_WhenCatalogTimesOut()
+    public async Task CreateOrder_ShouldReturnServiceUnavailable_WhenCatalogTimesOut()
     {
         var ct = TestContext.Current.CancellationToken;
         var arranged = Arrange("create-timeout");
@@ -112,8 +116,9 @@ public sealed class OrdersControllerTests(OrderApiFixture fixture)
 
         var response = await PostAsync(client, arranged.Marker, new CreateOrderRequest(arranged.CustomerId, arranged.ProductId, 1), ct);
 
-        // A downstream timeout is a failure like any other: a clear business error, never a 500.
-        await ProblemAssertions.AssertProblemAsync(response, HttpStatusCode.UnprocessableEntity);
+        // A downstream timeout ends in a 503 naming the unavailable service, never a hang or a 500.
+        var problem = await ProblemAssertions.AssertProblemAsync(response, HttpStatusCode.ServiceUnavailable);
+        Assert.Contains("product service is unavailable (timed out)", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
         Assert.Equal(0, await fixture.CountCommittedAsync(Sql.OrdersForCustomer, arranged.CustomerIdText));
     }
 

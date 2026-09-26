@@ -100,6 +100,43 @@ public sealed class AppHostResourceTests : IAsyncLifetime
         Assert.Equal(["customer-db"], referencedDatabases);
     }
 
+    [Theory]
+    [InlineData("redis")]
+    [InlineData("identity-api")]
+    [InlineData("catalog-api")]
+    [InlineData("customer-api")]
+    public void AddProject_ShouldReferenceResource_WhenApiGatewayIsDeclared(string resourceName)
+    {
+        // README (feature/api-gateway): the gateway reaches Redis and every business service
+        // through AppHost references, never through a hardcoded address.
+        var gateway = Assert.Single(_builder.Resources.OfType<ProjectResource>(), r => r.Name == "api-gateway");
+
+        var referenced = gateway.Annotations.OfType<ResourceRelationshipAnnotation>()
+            .Where(a => a.Type == "Reference")
+            .Select(a => a.Resource.Name);
+
+        Assert.Contains(resourceName, referenced);
+    }
+
+    [Fact]
+    public void WithExternalHttpEndpoints_ShouldExposeOnlyApiGateway_WhenAppHostIsBuilt()
+    {
+        // README (feature/api-gateway): the only service Aspire exposes outside its own network.
+        var externallyExposed = _builder.Resources.OfType<ProjectResource>()
+            .Where(r => r.Annotations.OfType<EndpointAnnotation>().Any(e => e.IsExternal))
+            .Select(r => r.Name);
+
+        Assert.Equal(["api-gateway"], externallyExposed);
+    }
+
+    [Fact]
+    public void AddRedis_ShouldDeclareRedisServer_WhenAppHostIsBuilt()
+    {
+        var redis = Assert.Single(_builder.Resources.OfType<RedisResource>());
+
+        Assert.Equal("redis", redis.Name);
+    }
+
     [Fact]
     public void AddKafka_ShouldDeclareKafkaServer_WhenAppHostIsBuilt()
     {

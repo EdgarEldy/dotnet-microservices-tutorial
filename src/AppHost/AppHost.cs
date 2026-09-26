@@ -57,4 +57,9 @@ var orderService = builder.AddProject<Projects.Order_API>("order-api")
     .WithReference(customerService)
     .WithEnvironment("Jwt__SigningKey", jwtSigningKey);
 
+// No database: notification-worker only consumes and produces Kafka events.
+var notificationService = builder.AddProject<Projects.Notification_Worker>("notification-worker")
+    .WithReference(kafka)
+    .WaitFor(kafka);
+
 builder.Build().Run();

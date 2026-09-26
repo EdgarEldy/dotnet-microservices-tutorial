@@ -50,6 +50,7 @@
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageVersion Include="Mapster" Version="10.0.13" />
+    <PackageVersion Include="Refit.HttpClientFactory" Version="16.1.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
     <!-- Testing -->
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
@@ -58,6 +59,7 @@
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Testcontainers.Kafka" Version="$(TestcontainersVersion)" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="$(TestcontainersVersion)" />
+    <PackageVersion Include="WireMock.Net" Version="2.18.0" />
   </ItemGroup>
 
 </Project>

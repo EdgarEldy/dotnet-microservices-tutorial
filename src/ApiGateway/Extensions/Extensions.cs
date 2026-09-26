@@ -51,7 +51,9 @@ public static class Extensions
 
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+            // ForwardedHeadersMiddleware trusts EVERY caller when both lists are empty, so with no
+            // trusted proxy configured the header must not be processed at all.
+            options.ForwardedHeaders = trustedProxies.Length == 0 ? ForwardedHeaders.None : ForwardedHeaders.XForwardedFor;
             options.ForwardLimit = 1;
             options.KnownProxies.Clear();
             options.KnownIPNetworks.Clear();

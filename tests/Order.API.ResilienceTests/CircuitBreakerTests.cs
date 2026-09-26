@@ -9,7 +9,10 @@ namespace Order.API.ResilienceTests;
 /// The circuit breaker, fallback and timeouts around order-api's Refit clients, driven through the
 /// real HTTP pipeline: POST /api/v1/Orders against WireMock stand-ins for catalog-api and customer-api.
 /// Test settings: the circuit opens once at least 4 attempts in 30 s failed half of the time, one
-/// retry per call (so two attempts per order), 2 s per attempt, 5 s in total.
+/// retry per call (so two attempts per order), generous timeouts (10 s per attempt, 30 s in total)
+/// except in the tests about timeouts. Proofs rest on WireMock's request counts and the fallback's
+/// reason ("circuit open", "timed out"); the time budgets only guard against a hang, so they are
+/// wide enough for a loaded machine.
 /// </summary>
 public sealed class CircuitBreakerTests(ContainersFixture containers)
 {
@@ -20,7 +23,7 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
     [Fact]
     public async Task CreateOrder_ShouldOpenCircuitAndFailFastWithoutCallingCatalog_WhenCatalogKeepsFailing()
     {
-        await using var factory = new OrderApiFactory(containers);
+        await using var factory = await OrderApiFactory.CreateAsync(containers);
         factory.CatalogAnswers(500);
         factory.CustomersReturnCustomer();
         using var client = factory.CreateCustomerClient();
@@ -40,7 +43,7 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
             await OrderRequests.AssertProblemAsync(second, HttpStatusCode.ServiceUnavailable);
         }
 
-        Assert.Equal(MinimumThroughput, factory.CatalogRequestCount);
+        Assert.Equal(MinimumThroughput, await factory.WaitForCatalogRequestsAsync(MinimumThroughput));
         Assert.Equal("Open", await OrderRequests.GetCircuitStateAsync(admin, CatalogApi));
 
         // Open circuit: the fallback answers at once, catalog-api is not called at all.
@@ -50,8 +53,9 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
 
         var fastDetail = await OrderRequests.AssertProblemAsync(third, HttpStatusCode.ServiceUnavailable);
         Assert.Contains("product service is unavailable (circuit open)", fastDetail, StringComparison.Ordinal);
-        Assert.Equal(MinimumThroughput, factory.CatalogRequestCount);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2), $"The open circuit took {stopwatch.Elapsed} to answer.");
+        // Waiting for one more request than expected proves none came (the wait runs its full bound).
+        Assert.Equal(MinimumThroughput, await factory.WaitForCatalogRequestsAsync(MinimumThroughput + 1));
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"The open circuit took {stopwatch.Elapsed} to answer.");
 
         var circuits = await OrderRequests.GetCircuitsAsync(admin);
         Assert.Equal(TimeSpan.FromSeconds(30), TimeSpan.Parse(circuits[CatalogApi].GetProperty("breakDuration").GetString()!, System.Globalization.CultureInfo.InvariantCulture));
@@ -65,7 +69,7 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
     [Fact]
     public async Task CreateOrder_ShouldOpenCircuitAndReturn503_WhenCatalogIsStopped()
     {
-        await using var factory = new OrderApiFactory(containers, new Dictionary<string, string?>
+        await using var factory = await OrderApiFactory.CreateAsync(containers, new Dictionary<string, string?>
         {
             ["AttemptTimeout"] = "00:00:01",
         });
@@ -90,15 +94,16 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
         stopwatch.Stop();
 
         var fastDetail = await OrderRequests.AssertProblemAsync(fast, HttpStatusCode.ServiceUnavailable);
+        // "(circuit open)" proves no call was attempted; the time bound only guards against a hang.
         Assert.Contains("(circuit open)", fastDetail, StringComparison.Ordinal);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"The open circuit took {stopwatch.Elapsed} to answer.");
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"The open circuit took {stopwatch.Elapsed} to answer.");
     }
 
     [Fact]
     public async Task CreateOrder_ShouldHalfOpenThenCloseCircuit_WhenCatalogRecoversAfterBreakDuration()
     {
         var breakDuration = TimeSpan.FromSeconds(1);
-        await using var factory = new OrderApiFactory(containers, new Dictionary<string, string?>
+        await using var factory = await OrderApiFactory.CreateAsync(containers, new Dictionary<string, string?>
         {
             ["BreakDuration"] = "00:00:01",
         });
@@ -139,7 +144,7 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
     [Fact]
     public async Task CreateOrder_ShouldReturn503WithoutHanging_WhenCatalogTimesOut()
     {
-        await using var factory = new OrderApiFactory(containers, new Dictionary<string, string?>
+        await using var factory = await OrderApiFactory.CreateAsync(containers, new Dictionary<string, string?>
         {
             ["AttemptTimeout"] = "00:00:00.500",
             ["TotalTimeout"] = "00:00:03",
@@ -155,13 +160,14 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
 
         var detail = await OrderRequests.AssertProblemAsync(response, HttpStatusCode.ServiceUnavailable);
         Assert.Contains("product service is unavailable (timed out)", detail, StringComparison.Ordinal);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"The timed out call took {stopwatch.Elapsed}.");
+        // Well under WireMock's 10 s delay: the 3 s total timeout ended the call, not the answer.
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(8), $"The timed out call took {stopwatch.Elapsed}.");
     }
 
     [Fact]
     public async Task CreateOrder_ShouldReturn422AndKeepCircuitClosed_WhenProductDoesNotExist()
     {
-        await using var factory = new OrderApiFactory(containers);
+        await using var factory = await OrderApiFactory.CreateAsync(containers);
         factory.CatalogAnswers(404);
         factory.CustomersReturnCustomer();
         using var client = factory.CreateCustomerClient();
@@ -176,7 +182,7 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
         }
 
         // Not retried either: one request per order.
-        Assert.Equal(MinimumThroughput * 2, factory.CatalogRequestCount);
+        Assert.Equal(MinimumThroughput * 2, await factory.WaitForCatalogRequestsAsync(MinimumThroughput * 2));
 
         var catalog = (await OrderRequests.GetCircuitsAsync(admin))[CatalogApi];
         Assert.Equal("Closed", catalog.GetProperty("state").GetString());
@@ -186,7 +192,7 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
     [Fact]
     public async Task CreateOrder_ShouldReturn503_WhenCustomerServiceIsUnavailable()
     {
-        await using var factory = new OrderApiFactory(containers);
+        await using var factory = await OrderApiFactory.CreateAsync(containers);
         factory.CatalogReturnsProduct();
         factory.Customers.Given(WireMock.RequestBuilders.Request.Create().WithPath(OrderApiFactory.CustomerPath).UsingGet())
             .RespondWith(WireMock.ResponseBuilders.Response.Create().WithStatusCode(502));
@@ -195,17 +201,16 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
         using var response = await OrderRequests.PostOrderAsync(client);
 
         var detail = await OrderRequests.AssertProblemAsync(response, HttpStatusCode.ServiceUnavailable);
-        // The reason depends on timing: on a slow runner the total timeout can expire before the
-        // retry, so it reads "timed out" rather than "answered 502 after the retries". Either way
-        // the caller gets the customer service's 503 and customer-api was actually called.
-        Assert.Contains("customer service is unavailable", detail, StringComparison.Ordinal);
-        Assert.InRange(factory.Customers.LogEntries.Count(), 1, 2);
+        // Deterministic again since the timeouts are generous and WireMock is warmed up: the 502 was
+        // retried once, then the fallback reported it.
+        Assert.Contains("customer service is unavailable (answered 502 after the retries)", detail, StringComparison.Ordinal);
+        Assert.Equal(2, await factory.WaitForCustomerRequestsAsync(2));
     }
 
     [Fact]
     public async Task GetCircuits_ShouldReturn403_WhenCallerIsNotAdmin()
     {
-        await using var factory = new OrderApiFactory(containers);
+        await using var factory = await OrderApiFactory.CreateAsync(containers);
         using var client = factory.CreateCustomerClient();
 
         using var response = await client.GetAsync("/api/v1/Orders/Diagnostics/Circuits", TestContext.Current.CancellationToken);
@@ -216,7 +221,7 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
     [Fact]
     public async Task GetCircuits_ShouldReportBothCircuitsClosed_WhenNoCallFailed()
     {
-        await using var factory = new OrderApiFactory(containers);
+        await using var factory = await OrderApiFactory.CreateAsync(containers);
         using var admin = factory.CreateAdminClient();
 
         var circuits = await OrderRequests.GetCircuitsAsync(admin);
@@ -233,7 +238,7 @@ public sealed class CircuitBreakerTests(ContainersFixture containers)
     [InlineData("TotalTimeout", "00:00:01")]
     public async Task Startup_ShouldFail_WhenResilienceOptionIsInvalid(string key, string value)
     {
-        await using var factory = new OrderApiFactory(containers, new Dictionary<string, string?> { [key] = value });
+        await using var factory = await OrderApiFactory.CreateAsync(containers, new Dictionary<string, string?> { [key] = value });
 
         var exception = Assert.ThrowsAny<Exception>(() => factory.Server);
 

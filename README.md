@@ -664,10 +664,10 @@ Formalizes the API shape `order-api` depends on, so a breaking change in `catalo
 
 ### Tasks
 
-- [ ] `PactNet` added to `catalog-api` and `customer-api` (the producers) for contract verification
-- [ ] `order-api`'s test suite (the consumer) generates Pact files describing the exact shape it expects from `GET /api/v1/Catalog/Products/{id}` and `GET /api/v1/Customers/{id}`
-- [ ] Each producer's build verifies itself against the consumer-generated pact files, failing CI if its response shape diverges
-- [ ] Document the trade-off honestly: contract testing only replaces the *shape* verification WireMock.Net was doing; it doesn't replace `feature/resilience`'s failure-handling tests, which still need hand-written failure scenarios
+- [x] `PactNet` added to `catalog-api` and `customer-api` (the producers) for contract verification
+- [x] `order-api`'s test suite (the consumer) generates Pact files describing the exact shape it expects from `GET /api/v1/Catalog/Products/{id}` and `GET /api/v1/Customers/{id}`
+- [x] Each producer's build verifies itself against the consumer-generated pact files, failing CI if its response shape diverges
+- [x] Document the trade-off honestly: contract testing only replaces the *shape* verification WireMock.Net was doing; it doesn't replace `feature/resilience`'s failure-handling tests, which still need hand-written failure scenarios
 
 ## Order of work
 

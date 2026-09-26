@@ -9,13 +9,12 @@
 
   <ItemGroup>
     <PackageReference Include="xunit.v3.mtp-v2" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="PactNet" />
-    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Catalog.API\Catalog.API.csproj" />
+    <!-- The real Refit interfaces, DTOs and ForwardAccessTokenHandler order-api ships -->
+    <ProjectReference Include="..\..\src\Order.API\Order.API.csproj" />
   </ItemGroup>
 
   <ItemGroup>

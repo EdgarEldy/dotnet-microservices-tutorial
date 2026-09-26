@@ -61,6 +61,8 @@
     <!-- Testing -->
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
     <PackageVersion Include="Moq" Version="4.21.0" />
+    <!-- Consumer-driven contracts (MIT): consumer pact generation and provider verification -->
+    <PackageVersion Include="PactNet" Version="5.0.1" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.Testing" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="$(MicrosoftExtensionsVersion)" />
     <PackageVersion Include="Testcontainers.Kafka" Version="$(TestcontainersVersion)" />

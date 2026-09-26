@@ -1,0 +1,44 @@
+name: CI - api-gateway
+
+on:
+  push:
+    branches: [develop, master]
+    paths:
+      - 'src/ApiGateway/**'
+      - 'tests/ApiGateway.Tests/**'
+      - 'src/Common.Lib/**'
+      - 'src/ServiceDefaults/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/ci-api-gateway.yml'
+  pull_request:
+    paths:
+      - 'src/ApiGateway/**'
+      - 'tests/ApiGateway.Tests/**'
+      - 'src/Common.Lib/**'
+      - 'src/ServiceDefaults/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/ci-api-gateway.yml'
+
+jobs:
+  # api-gateway compiles against Common.Lib: only build it once Common.Lib is green.
+  common-lib:
+    uses: ./.github/workflows/ci-common-lib.yml
+
+  build:
+    needs: common-lib
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build and test ApiGateway
+        run: dotnet test --project tests/ApiGateway.Tests/ApiGateway.Tests.csproj --configuration Release

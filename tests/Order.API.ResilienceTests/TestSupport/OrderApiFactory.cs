@@ -33,10 +33,14 @@ public sealed class OrderApiFactory : WebApplicationFactory<Program>
     private readonly ContainersFixture _containers;
     private readonly Dictionary<string, string?> _settings;
 
-    public OrderApiFactory(ContainersFixture containers, IDictionary<string, string?>? resilienceOverrides = null)
+    private OrderApiFactory(ContainersFixture containers, IDictionary<string, string?>? resilienceOverrides)
     {
         _containers = containers;
 
+        // The attempt and total timeouts are deliberately generous: the first downstream call of
+        // a fresh host pays for JIT, the HttpClient pipeline and the connection, which on a loaded
+        // machine took seconds and turned a 404 or a 502 into a timeout. The tests about timeouts
+        // set their own short values.
         _settings = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["Resilience:Downstream:FailureRatio"] = "0.5",
@@ -45,14 +49,56 @@ public sealed class OrderApiFactory : WebApplicationFactory<Program>
             ["Resilience:Downstream:BreakDuration"] = "00:00:30",
             ["Resilience:Downstream:RetryCount"] = "1",
             ["Resilience:Downstream:RetryDelay"] = "00:00:00.010",
-            ["Resilience:Downstream:AttemptTimeout"] = "00:00:02",
-            ["Resilience:Downstream:TotalTimeout"] = "00:00:05",
+            ["Resilience:Downstream:AttemptTimeout"] = "00:00:10",
+            ["Resilience:Downstream:TotalTimeout"] = "00:00:30",
         };
 
         foreach (var (key, value) in resilienceOverrides ?? new Dictionary<string, string?>())
         {
             _settings[$"Resilience:Downstream:{key}"] = value;
         }
+    }
+
+    /// <summary>
+    /// A factory whose WireMock servers already answered once: WireMock's first request is slow
+    /// (its own JIT and matchers), and that cost must not land inside a test's attempt timeout.
+    /// The warm-up requests are then erased from the request logs the tests count.
+    /// </summary>
+    public static async Task<OrderApiFactory> CreateAsync(
+        ContainersFixture containers,
+        IDictionary<string, string?>? resilienceOverrides = null)
+    {
+        var factory = new OrderApiFactory(containers, resilienceOverrides);
+
+        using var warmUp = new HttpClient();
+        foreach (var server in new[] { factory.Catalog, factory.Customers })
+        {
+            using var response = await warmUp.GetAsync(new Uri($"{server.Url}/__warm-up"), TestContext.Current.CancellationToken);
+            server.ResetLogEntries();
+        }
+
+        return factory;
+    }
+
+    /// <summary>
+    /// Waits (bounded) until catalog-api has logged <paramref name="expected"/> requests and returns
+    /// the count. WireMock appends a request to its log after writing the response, so a count
+    /// read right after the call can still miss the last request.
+    /// </summary>
+    public Task<int> WaitForCatalogRequestsAsync(int expected) => WaitForRequestsAsync(Catalog, expected);
+
+    /// <summary>The same as <see cref="WaitForCatalogRequestsAsync"/>, for customer-api.</summary>
+    public Task<int> WaitForCustomerRequestsAsync(int expected) => WaitForRequestsAsync(Customers, expected);
+
+    private static async Task<int> WaitForRequestsAsync(WireMockServer server, int expected)
+    {
+        var deadline = TimeProvider.System.GetUtcNow() + TimeSpan.FromSeconds(5);
+        while (server.LogEntries.Count() < expected && TimeProvider.System.GetUtcNow() < deadline)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20), TestContext.Current.CancellationToken);
+        }
+
+        return server.LogEntries.Count();
     }
 
     /// <summary>Stands in for catalog-api.</summary>
@@ -110,9 +156,6 @@ public sealed class OrderApiFactory : WebApplicationFactory<Program>
     public void CatalogAnswers(int statusCode) =>
         Catalog.Given(Request.Create().WithPath(ProductPath).UsingGet())
             .RespondWith(Response.Create().WithStatusCode(statusCode));
-
-    /// <summary>How many requests catalog-api actually received.</summary>
-    public int CatalogRequestCount => Catalog.LogEntries.Count();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

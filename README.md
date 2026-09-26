@@ -653,10 +653,10 @@ Adds fault tolerance to `order-api`'s synchronous calls.
 
 ### Tasks
 
-- [ ] `Microsoft.Extensions.Http.Resilience`, a resilience pipeline (circuit breaker + retry + timeout) attached to the `IProductClient`/`ICustomerClient` typed `HttpClient` registrations via `AddResilienceHandler`
-- [ ] Fallback handlers returning a clear "product/customer service unavailable" business error instead of the order creation hanging or throwing an unhandled exception
-- [ ] A deliberately induced failure test: stop `catalog-api` in the test setup, verify the circuit breaker opens after the configured failure threshold and the fallback is used
-- [ ] A diagnostics endpoint (or structured log) exposing current circuit breaker state, for parity with the observability this pattern is supposed to provide
+- [x] `Microsoft.Extensions.Http.Resilience`, a resilience pipeline (circuit breaker + retry + timeout) attached to the `IProductClient`/`ICustomerClient` typed `HttpClient` registrations via `AddResilienceHandler`
+- [x] Fallback handlers returning a clear "product/customer service unavailable" business error instead of the order creation hanging or throwing an unhandled exception
+- [x] A deliberately induced failure test: stop `catalog-api` in the test setup, verify the circuit breaker opens after the configured failure threshold and the fallback is used
+- [x] A diagnostics endpoint (or structured log) exposing current circuit breaker state, for parity with the observability this pattern is supposed to provide
 
 ## feature/contract-testing (bonus)
 

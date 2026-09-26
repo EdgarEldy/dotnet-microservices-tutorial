@@ -1,0 +1,70 @@
+name: CI - order-api
+
+on:
+  push:
+    branches: [develop, master]
+    paths:
+      - 'src/Order.API/**'
+      - 'src/Contracts/**'
+      - 'tests/Order.API.Tests/**'
+      - 'tests/Order.API.ResilienceTests/**'
+      - 'tests/Order.API.ContractTests/**'
+      - 'pacts/**'
+      - 'src/Common.Lib/**'
+      - 'src/ServiceDefaults/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/ci-order-api.yml'
+  pull_request:
+    paths:
+      - 'src/Order.API/**'
+      - 'src/Contracts/**'
+      - 'tests/Order.API.Tests/**'
+      - 'tests/Order.API.ResilienceTests/**'
+      - 'tests/Order.API.ContractTests/**'
+      - 'pacts/**'
+      - 'src/Common.Lib/**'
+      - 'src/ServiceDefaults/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/ci-order-api.yml'
+
+jobs:
+  # order-api compiles against Common.Lib: only build it once Common.Lib is green.
+  common-lib:
+    uses: ./.github/workflows/ci-common-lib.yml
+
+  build:
+    needs: common-lib
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build and test Order.API
+        run: dotnet test --project tests/Order.API.Tests/Order.API.Tests.csproj --configuration Release
+
+      - name: Test the Order.API resilience pipeline (circuit breaker, fallback, timeouts)
+        run: dotnet test --project tests/Order.API.ResilienceTests/Order.API.ResilienceTests.csproj --configuration Release
+
+      # order-api is the Pact consumer: regenerate its contracts from scratch (PactNet merges
+      # into an existing file, so a removed interaction would otherwise survive), then fail if
+      # they differ from the committed ones, which catalog-api and customer-api verify.
+      - name: Regenerate the order-api pact files
+        env:
+          PACT_DO_NOT_TRACK: 'true'
+        run: |
+          rm -f pacts/order-api-*.json
+          dotnet test --project tests/Order.API.ContractTests/Order.API.ContractTests.csproj --configuration Release
+
+      - name: Fail if the committed pact files are stale
+        run: |
+          git status --porcelain -- pacts/
+          test -z "$(git status --porcelain -- pacts/)"

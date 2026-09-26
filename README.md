@@ -494,12 +494,12 @@ First branch, since every service below depends on it.
 
 ### Tasks
 
-- [ ] `ResourceNotFoundException`, `BusinessRuleException`, `GlobalExceptionHandler` (`IExceptionHandler`, mapping to `ProblemDetails`/`ValidationProblemDetails`)
-- [ ] `PageResponse<T>` header-building helper
-- [ ] Referenced as a regular project reference (`<ProjectReference>`) by every service, never copy-pasted
-- [ ] Unit tests for `GlobalExceptionHandler`'s mapping of each exception type
-- [ ] `.github/workflows/ci-common-lib.yml`, and every other service's CI job depends on this one succeeding first (since they all compile against it)
-- [ ] `.github/PULL_REQUEST_TEMPLATE.md`: repo-wide, used by every `feature/*` branch's PR from here on
+- [x] `ResourceNotFoundException`, `BusinessRuleException`, `GlobalExceptionHandler` (`IExceptionHandler`, mapping to `ProblemDetails`/`ValidationProblemDetails`)
+- [x] `PageResponse<T>` header-building helper
+- [x] Referenced as a regular project reference (`<ProjectReference>`) by every service, never copy-pasted
+- [x] Unit tests for `GlobalExceptionHandler`'s mapping of each exception type
+- [x] `.github/workflows/ci-common-lib.yml`, and every other service's CI job depends on this one succeeding first (since they all compile against it)
+- [x] `.github/PULL_REQUEST_TEMPLATE.md`: repo-wide, used by every `feature/*` branch's PR from here on
 
 ## feature/infrastructure
 
@@ -507,11 +507,11 @@ The Aspire orchestration layer and the shared cross-cutting service wiring. No b
 
 ### Tasks
 
-- [ ] `src/AppHost/`: created via the standard Aspire project templates (`dotnet new aspire-apphost`), `AppHost.cs` starts with just the resource declarations that exist so far (PostgreSQL server, one database per business service, a Kafka resource) - every business service is added to it incrementally, in its own branch, as that service is built
-- [ ] `src/ServiceDefaults/`: created via `dotnet new aspire-servicedefaults`, exposing one `AddServiceDefaults()` extension method that wires OpenTelemetry (traces, metrics, logs, OTLP exporter pointed at the Aspire dashboard), ASP.NET Core Health Checks (`/health/live`, `/health/ready`), and default HTTP resilience for outgoing `HttpClient`s - referenced by every service from this branch onward
-- [ ] Every service's `Program.cs` calls `builder.AddServiceDefaults()` as its first line, before anything else is registered
-- [ ] ASP.NET Core Health Checks convention established: every service exposes `/health/live` (process is up) and `/health/ready` (dependencies - DB, Kafka - are reachable) via tagged health check groups, provided by `ServiceDefaults`
-- [ ] `.github/workflows/ci-infrastructure.yml` (covering `AppHost`/`ServiceDefaults` build) or folded into `ci-common-lib.yml`
+- [x] `src/AppHost/`: created via the standard Aspire project templates (`dotnet new aspire-apphost`), `AppHost.cs` starts with just the resource declarations that exist so far (PostgreSQL server, one database per business service, a Kafka resource) - every business service is added to it incrementally, in its own branch, as that service is built
+- [x] `src/ServiceDefaults/`: created via `dotnet new aspire-servicedefaults`, exposing one `AddServiceDefaults()` extension method that wires OpenTelemetry (traces, metrics, logs, OTLP exporter pointed at the Aspire dashboard), ASP.NET Core Health Checks (`/health/live`, `/health/ready`), and default HTTP resilience for outgoing `HttpClient`s - referenced by every service from this branch onward
+- [x] Every service's `Program.cs` calls `builder.AddServiceDefaults()` as its first line, before anything else is registered
+- [x] ASP.NET Core Health Checks convention established: every service exposes `/health/live` (process is up) and `/health/ready` (dependencies - DB, Kafka - are reachable) via tagged health check groups, provided by `ServiceDefaults`
+- [x] `.github/workflows/ci-infrastructure.yml` (covering `AppHost`/`ServiceDefaults` build) or folded into `ci-common-lib.yml`
 
 ## feature/identity-api
 
@@ -532,17 +532,17 @@ Identity and access control, packaged as its own microservice - with one deliber
 
 ### Tasks
 
-- [ ] `src/Contracts/` project created (if not already, from `feature/common-lib`'s dependency graph): `UserRegisteredEvent`, `PasswordResetRequestedEvent` message contracts, referenced as a project reference by both `identity-api` (publisher) and `notification-worker` (consumer, added in a later branch) - never duplicated as two independently-defined classes that happen to look alike
-- [ ] ASP.NET Core Identity (`AppUser : IdentityUser<int>`, `AppRole : IdentityRole<int>`), custom `Permission`/`RolePermission` entities for resource/action authorization beyond Identity's own role-only model
-- [ ] `RefreshToken`, `BlacklistedAccessToken`, `AuditLog` entities
-- [ ] **No `IEmailService` in this service.** It publishes an event and lets `notification-worker` handle delivery - the same "one service owns everything that leaves the system" rule applied to `order-api`
-- [ ] `AddEntityFrameworkOutbox<AppDbContext>(o => { o.UsePostgres(); o.UseBusOutbox(); })` configured on the MassTransit registration - see [The Saga in detail](#the-saga-in-detail-order-confirmation)
-- [ ] `identity-api` publishes `UserRegisteredEvent` (UserId, Email, confirmation token) right after registration, and `PasswordResetRequestedEvent` (UserId, Email, reset token) right after a reset is requested - both calls are ordinary `IPublishEndpoint.Publish(...)`, and the outbox above is what makes each one land in the same transaction as the row that triggered it, atomically, rather than relying on careful call ordering
-- [ ] A custom claims principal factory embeds the user's resolved permissions into the JWT at login, so downstream permission checks never need a database call
-- [ ] Depends on `Common.Lib`
-- [ ] `JwtService` signs tokens with a shared secret/key, documented clearly since every other business service and `api-gateway` need to validate the same tokens independently
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Identity_API>("identity-api").WithReference(identityDb).WithReference(kafka)`
-- [ ] Unit, repository, and controller tests, plus a test verifying both events end up in `OutboxMessage` within the same transaction as the row that triggered them, and are relayed to Kafka only after that transaction commits
+- [x] `src/Contracts/` project created (if not already, from `feature/common-lib`'s dependency graph): `UserRegisteredEvent`, `PasswordResetRequestedEvent` message contracts, referenced as a project reference by both `identity-api` (publisher) and `notification-worker` (consumer, added in a later branch) - never duplicated as two independently-defined classes that happen to look alike
+- [x] ASP.NET Core Identity (`AppUser : IdentityUser<int>`, `AppRole : IdentityRole<int>`), custom `Permission`/`RolePermission` entities for resource/action authorization beyond Identity's own role-only model
+- [x] `RefreshToken`, `BlacklistedAccessToken`, `AuditLog` entities
+- [x] **No `IEmailService` in this service.** It publishes an event and lets `notification-worker` handle delivery - the same "one service owns everything that leaves the system" rule applied to `order-api`
+- [x] `AddEntityFrameworkOutbox<AppDbContext>(o => { o.UsePostgres(); o.UseBusOutbox(); })` configured on the MassTransit registration - see [The Saga in detail](#the-saga-in-detail-order-confirmation)
+- [x] `identity-api` publishes `UserRegisteredEvent` (UserId, Email, confirmation token) right after registration, and `PasswordResetRequestedEvent` (UserId, Email, reset token) right after a reset is requested - both calls are ordinary `IPublishEndpoint.Publish(...)`, and the outbox above is what makes each one land in the same transaction as the row that triggered it, atomically, rather than relying on careful call ordering
+- [x] A custom claims principal factory embeds the user's resolved permissions into the JWT at login, so downstream permission checks never need a database call
+- [x] Depends on `Common.Lib`
+- [x] `JwtService` signs tokens with a shared secret/key, documented clearly since every other business service and `api-gateway` need to validate the same tokens independently
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Identity_API>("identity-api").WithReference(identityDb).WithReference(kafka)`
+- [x] Unit, repository, and controller tests, plus a test verifying both events end up in `OutboxMessage` within the same transaction as the row that triggered them, and are relayed to Kafka only after that transaction commits
 
 ## feature/catalog-api
 
@@ -558,10 +558,10 @@ Identity and access control, packaged as its own microservice - with one deliber
 
 ### Tasks
 
-- [ ] `Category`, `Product` models, `AppDbContext`, DTOs, Mapster mapping, FluentValidation validators, interface-backed services (side by side in `Services/`, no separate folder split), controllers
-- [ ] Depends on `Common.Lib`
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Catalog_API>("catalog-api").WithReference(catalogDb)`
-- [ ] Tests, including one verifying `GET /api/v1/Catalog/Products/{id}`'s exact response shape (formalized later by `feature/contract-testing`)
+- [x] `Category`, `Product` models, `AppDbContext`, DTOs, Mapster mapping, FluentValidation validators, interface-backed services (side by side in `Services/`, no separate folder split), controllers
+- [x] Depends on `Common.Lib`
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Catalog_API>("catalog-api").WithReference(catalogDb)`
+- [x] Tests, including one verifying `GET /api/v1/Catalog/Products/{id}`'s exact response shape (formalized later by `feature/contract-testing`)
 
 ## feature/customer-api
 
@@ -575,11 +575,11 @@ Identity and access control, packaged as its own microservice - with one deliber
 
 ### Tasks
 
-- [ ] `Customer` model with a plain `UserId` column (no FK to `identity-api`)
-- [ ] `AppDbContext`, DTOs, Mapster mapping, FluentValidation validator, interface-backed service (side by side in `Services/`), controller
-- [ ] Depends on `Common.Lib`
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Customer_API>("customer-api").WithReference(customerDb)`
-- [ ] Tests, including one confirming `customer-api` never attempts a direct database call against `identity-api`'s schema
+- [x] `Customer` model with a plain `UserId` column (no FK to `identity-api`)
+- [x] `AppDbContext`, DTOs, Mapster mapping, FluentValidation validator, interface-backed service (side by side in `Services/`), controller
+- [x] Depends on `Common.Lib`
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Customer_API>("customer-api").WithReference(customerDb)`
+- [x] Tests, including one confirming `customer-api` never attempts a direct database call against `identity-api`'s schema
 
 ## feature/order-api
 
@@ -595,17 +595,17 @@ The only service that calls others synchronously, and the origin of the tutorial
 
 ### Tasks
 
-- [ ] `Order` model (plain `CustomerId`/`ProductId` columns, `Status` defaulting to `Pending`), `IdempotencyKey` model
-- [ ] `IProductClient`, `ICustomerClient` (Refit interfaces, resolved through `Microsoft.Extensions.ServiceDiscovery`)
-- [ ] **Idempotent creation**: `POST /api/v1/Orders` requires an `Idempotency-Key` header; before doing anything else, the service checks whether that key already exists in `idempotency_keys` - if so, it returns the previously created order instead of creating a duplicate (covers Refit's own retry-on-timeout behavior, and clients retrying after a dropped connection)
-- [ ] `AddEntityFrameworkOutbox<AppDbContext>(o => { o.UsePostgres(); o.UseBusOutbox(); })` configured on the MassTransit registration - see [The Saga in detail](#the-saga-in-detail-order-confirmation); `OrderService.CreateAsync` publishes `OrderCreatedEvent` via `IPublishEndpoint.Publish(...)` immediately after building the order, in the same `SaveChangesAsync()` call that persists it - the outbox is what turns that into one atomic operation instead of a race
-- [ ] `order-api`: validates via both Refit clients, computes `Total`, persists the order as `Pending`, the idempotency key, and the outbox message all in the **same local transaction** - MassTransit relays the event to Kafka only once that transaction has actually committed, never before (never publish before commit, or a consumer could react to an order that turns out not to exist)
-- [ ] `OrderConfirmedEventConsumer` (`Consumers/`): consumes the Saga's success event, defined once in `src/Contracts/`, and updates the order's `Status` from `Pending` to `Confirmed` - this is the only path that ever reaches `Confirmed`
-- [ ] `NotificationFailedEventConsumer` (`Consumers/`): consumes the Saga's compensating event, also from `src/Contracts/`, and updates the order's `Status` to `ConfirmationFailed`
-- [ ] Explicit handling of a Refit call failing (`ApiException`) - mapped to a clear `BusinessRuleException`/404 rather than leaking a raw HTTP exception
-- [ ] Depends on `Common.Lib`
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Order_API>("order-api").WithReference(orderDb).WithReference(kafka).WithReference(catalogService).WithReference(customerService)` - the `.WithReference` calls to `catalogService`/`customerService` are what makes Aspire's service discovery resolve `https+http://catalog-api`/`https+http://customer-api` for this service's Refit clients
-- [ ] Tests: WireMock.Net stubs for `IProductClient`/`ICustomerClient` (success and failure), a repeated `POST` with the same `Idempotency-Key` returning the same order instead of creating a second one, a Testcontainers Kafka broker verifying `OrderCreatedEvent` lands in `OutboxMessage` within the same transaction as the order and is only relayed to Kafka after that transaction commits, and both consumers correctly transitioning `Status`
+- [x] `Order` model (plain `CustomerId`/`ProductId` columns, `Status` defaulting to `Pending`), `IdempotencyKey` model
+- [x] `IProductClient`, `ICustomerClient` (Refit interfaces, resolved through `Microsoft.Extensions.ServiceDiscovery`)
+- [x] **Idempotent creation**: `POST /api/v1/Orders` requires an `Idempotency-Key` header; before doing anything else, the service checks whether that key already exists in `idempotency_keys` - if so, it returns the previously created order instead of creating a duplicate (covers Refit's own retry-on-timeout behavior, and clients retrying after a dropped connection)
+- [x] `AddEntityFrameworkOutbox<AppDbContext>(o => { o.UsePostgres(); o.UseBusOutbox(); })` configured on the MassTransit registration - see [The Saga in detail](#the-saga-in-detail-order-confirmation); `OrderService.CreateAsync` publishes `OrderCreatedEvent` via `IPublishEndpoint.Publish(...)` immediately after building the order, in the same `SaveChangesAsync()` call that persists it - the outbox is what turns that into one atomic operation instead of a race
+- [x] `order-api`: validates via both Refit clients, computes `Total`, persists the order as `Pending`, the idempotency key, and the outbox message all in the **same local transaction** - MassTransit relays the event to Kafka only once that transaction has actually committed, never before (never publish before commit, or a consumer could react to an order that turns out not to exist)
+- [x] `OrderConfirmedEventConsumer` (`Consumers/`): consumes the Saga's success event, defined once in `src/Contracts/`, and updates the order's `Status` from `Pending` to `Confirmed` - this is the only path that ever reaches `Confirmed`
+- [x] `NotificationFailedEventConsumer` (`Consumers/`): consumes the Saga's compensating event, also from `src/Contracts/`, and updates the order's `Status` to `ConfirmationFailed`
+- [x] Explicit handling of a Refit call failing (`ApiException`) - mapped to a clear `BusinessRuleException`/404 rather than leaking a raw HTTP exception
+- [x] Depends on `Common.Lib`
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Order_API>("order-api").WithReference(orderDb).WithReference(kafka).WithReference(catalogService).WithReference(customerService)` - the `.WithReference` calls to `catalogService`/`customerService` are what makes Aspire's service discovery resolve `https+http://catalog-api`/`https+http://customer-api` for this service's Refit clients
+- [x] Tests: WireMock.Net stubs for `IProductClient`/`ICustomerClient` (success and failure), a repeated `POST` with the same `Idempotency-Key` returning the same order instead of creating a second one, a Testcontainers Kafka broker verifying `OrderCreatedEvent` lands in `OutboxMessage` within the same transaction as the order and is only relayed to Kafka after that transaction commits, and both consumers correctly transitioning `Status`
 
 ## feature/notification-worker
 
@@ -613,16 +613,16 @@ New service - this tutorial's only consumer-only, database-less microservice, th
 
 ### Tasks
 
-- [ ] `OrderCreatedEventConsumer` (MassTransit `IConsumer<OrderCreatedEvent>`): receives the event, calls `IEmailNotification.Worker` (which, for this tutorial, logs a message instead of sending a real email)
-- [ ] `UserRegisteredEventConsumer`: receives `UserRegisteredEvent` on the `identity-events` topic, sends the activation e-mail (logged, same as above)
-- [ ] `PasswordResetRequestedEventConsumer`: receives `PasswordResetRequestedEvent` on the same topic, sends the password-reset e-mail
-- [ ] `IEmailNotification.Worker` is shared across all three consumers - one service, one place that "sends" e-mail, regardless of which business event triggered it
-- [ ] On success, `OrderCreatedEventConsumer` publishes `OrderConfirmedEvent` (carrying the `OrderId`) onto `notification-events` - the Saga's nominal-path outcome, symmetric with the compensating event below, so `order-api` always eventually hears back one way or the other, never left silently `Pending`
-- [ ] Deliberately simulated failure path, on the order flow only: if the "notification" fails (configurable, e.g. a specific product name triggers a simulated failure for demo purposes), the consumer publishes a `NotificationFailedEvent` back onto `notification-events`, rather than silently swallowing the error
-- [ ] This is the tutorial's **choreographed Saga**, end to end - see [The Saga in detail](#the-saga-in-detail-order-confirmation). No central orchestrator, no distributed transaction. The account-related events are simpler: fire-and-forget, no compensating action, since a failed activation e-mail doesn't need to undo the account creation
-- [ ] Depends on `Common.Lib`
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Notification_Worker>("notification-worker").WithReference(kafka)` (the `kafka` resource itself, `builder.AddKafka("kafka")`, was declared once in `feature/infrastructure`)
-- [ ] Tests: a Testcontainers Kafka test verifying the full order-flow choreography in both directions - publish `OrderCreatedEvent` → consumer reacts → nominal case: `OrderConfirmedEvent` published → (in `order-api`'s own test suite) `Status` becomes `Confirmed`; failure case: simulated failure → `NotificationFailedEvent` published → `Status` becomes `ConfirmationFailed` - plus a simpler test confirming `UserRegisteredEvent`/`PasswordResetRequestedEvent` trigger the expected `IEmailNotification.Worker` call
+- [x] `OrderCreatedEventConsumer` (MassTransit `IConsumer<OrderCreatedEvent>`): receives the event, calls `IEmailNotification.Worker` (which, for this tutorial, logs a message instead of sending a real email)
+- [x] `UserRegisteredEventConsumer`: receives `UserRegisteredEvent` on the `identity-events` topic, sends the activation e-mail (logged, same as above)
+- [x] `PasswordResetRequestedEventConsumer`: receives `PasswordResetRequestedEvent` on the same topic, sends the password-reset e-mail
+- [x] `IEmailNotification.Worker` is shared across all three consumers - one service, one place that "sends" e-mail, regardless of which business event triggered it
+- [x] On success, `OrderCreatedEventConsumer` publishes `OrderConfirmedEvent` (carrying the `OrderId`) onto `notification-events` - the Saga's nominal-path outcome, symmetric with the compensating event below, so `order-api` always eventually hears back one way or the other, never left silently `Pending`
+- [x] Deliberately simulated failure path, on the order flow only: if the "notification" fails (configurable, e.g. a specific product name triggers a simulated failure for demo purposes), the consumer publishes a `NotificationFailedEvent` back onto `notification-events`, rather than silently swallowing the error
+- [x] This is the tutorial's **choreographed Saga**, end to end - see [The Saga in detail](#the-saga-in-detail-order-confirmation). No central orchestrator, no distributed transaction. The account-related events are simpler: fire-and-forget, no compensating action, since a failed activation e-mail doesn't need to undo the account creation
+- [x] Depends on `Common.Lib`
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.Notification_Worker>("notification-worker").WithReference(kafka)` (the `kafka` resource itself, `builder.AddKafka("kafka")`, was declared once in `feature/infrastructure`)
+- [x] Tests: a Testcontainers Kafka test verifying the full order-flow choreography in both directions - publish `OrderCreatedEvent` → consumer reacts → nominal case: `OrderConfirmedEvent` published → (in `order-api`'s own test suite) `Status` becomes `Confirmed`; failure case: simulated failure → `NotificationFailedEvent` published → `Status` becomes `ConfirmationFailed` - plus a simpler test confirming `UserRegisteredEvent`/`PasswordResetRequestedEvent` trigger the expected `IEmailNotification.Worker` call
 
 ## feature/api-gateway
 
@@ -630,11 +630,11 @@ Single entry point. Depends on every business service already being registered.
 
 ### Tasks
 
-- [ ] `Yarp.ReverseProxy`, route definitions per service, each cluster destination expressed as an Aspire-resolved logical address (`https+http://catalog-api`, etc.) rather than a fixed host:port - no manual refresh loop needed, since every reference was already declared once in `AppHost`
-- [ ] `JwtValidationMiddleware`: validates the JWT's signature/expiration on every route except `/api/v1/Auth/Register`, `/api/v1/Auth/Login`, `/api/v1/Auth/ConfirmEmail`
-- [ ] `RateLimiterPolicies`: Redis-backed distributed rate limiter applied to `/api/v1/Auth/Login`, protecting `identity-api` against brute-force attempts (a fixed number of requests per second per client IP, configurable)
-- [ ] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.ApiGateway>("api-gateway").WithReference(redis).WithReference(identityService).WithReference(catalogService).WithReference(customerService).WithReference(orderService).WithReference(notificationService).WithExternalHttpEndpoints()` - the only service Aspire exposes outside its own network
-- [ ] Tests: routing to a mocked downstream, JWT rejection on a protected route without a token, pass-through on public routes, rate limiter returning 429 past the configured threshold
+- [x] `Yarp.ReverseProxy`, route definitions per service, each cluster destination expressed as an Aspire-resolved logical address (`https+http://catalog-api`, etc.) rather than a fixed host:port - no manual refresh loop needed, since every reference was already declared once in `AppHost`
+- [x] `JwtValidationMiddleware`: validates the JWT's signature/expiration on every route except `/api/v1/Auth/Register`, `/api/v1/Auth/Login`, `/api/v1/Auth/ConfirmEmail`
+- [x] `RateLimiterPolicies`: Redis-backed distributed rate limiter applied to `/api/v1/Auth/Login`, protecting `identity-api` against brute-force attempts (a fixed number of requests per second per client IP, configurable)
+- [x] Added to `src/AppHost/AppHost.cs`: `builder.AddProject<Projects.ApiGateway>("api-gateway").WithReference(redis).WithReference(identityService).WithReference(catalogService).WithReference(customerService).WithReference(orderService).WithReference(notificationService).WithExternalHttpEndpoints()` - the only service Aspire exposes outside its own network
+- [x] Tests: routing to a mocked downstream, JWT rejection on a protected route without a token, pass-through on public routes, rate limiter returning 429 past the configured threshold
 
 ## feature/observability
 
@@ -642,10 +642,10 @@ Distributed tracing across the whole system - arguably the single most useful ad
 
 ### Tasks
 
-- [ ] Confirm every service's `ServiceDefaults`-provided OpenTelemetry pipeline is actually exporting - the Aspire Dashboard (opened automatically when `AppHost` runs) should show live traces without any extra exporter configuration
-- [ ] MassTransit's built-in `ActivitySource` diagnostics explicitly added to the OpenTelemetry pipeline (`ServiceDefaults`' default only instruments `HttpClient` and ASP.NET Core out of the box, not MassTransit), so Kafka hops appear in traces alongside HTTP hops
-- [ ] Verify trace propagation across **both** communication styles: a single trace should show `api-gateway → order-api → catalog-api` (via Refit) as one connected trace, and a separate trace should show `order-api → notification-worker` (via the Kafka message) as connected too - this must be verified by hand once in the dashboard, not assumed
-- [ ] A short walkthrough (in this branch's own notes) showing a captured trace in the Aspire Dashboard for a full order-creation request, annotated with what each span represents
+- [x] Confirm every service's `ServiceDefaults`-provided OpenTelemetry pipeline is actually exporting - the Aspire Dashboard (opened automatically when `AppHost` runs) should show live traces without any extra exporter configuration
+- [x] MassTransit's built-in `ActivitySource` diagnostics explicitly added to the OpenTelemetry pipeline (`ServiceDefaults`' default only instruments `HttpClient` and ASP.NET Core out of the box, not MassTransit), so Kafka hops appear in traces alongside HTTP hops
+- [x] Verify trace propagation across **both** communication styles: a single trace should show `api-gateway → order-api → catalog-api` (via Refit) as one connected trace, and a separate trace should show `order-api → notification-worker` (via the Kafka message) as connected too - this must be verified by hand once in the dashboard, not assumed
+- [x] A short walkthrough (in this branch's own notes) showing a captured trace in the Aspire Dashboard for a full order-creation request, annotated with what each span represents
 
 ## feature/resilience
 
@@ -653,10 +653,10 @@ Adds fault tolerance to `order-api`'s synchronous calls.
 
 ### Tasks
 
-- [ ] `Microsoft.Extensions.Http.Resilience`, a resilience pipeline (circuit breaker + retry + timeout) attached to the `IProductClient`/`ICustomerClient` typed `HttpClient` registrations via `AddResilienceHandler`
-- [ ] Fallback handlers returning a clear "product/customer service unavailable" business error instead of the order creation hanging or throwing an unhandled exception
-- [ ] A deliberately induced failure test: stop `catalog-api` in the test setup, verify the circuit breaker opens after the configured failure threshold and the fallback is used
-- [ ] A diagnostics endpoint (or structured log) exposing current circuit breaker state, for parity with the observability this pattern is supposed to provide
+- [x] `Microsoft.Extensions.Http.Resilience`, a resilience pipeline (circuit breaker + retry + timeout) attached to the `IProductClient`/`ICustomerClient` typed `HttpClient` registrations via `AddResilienceHandler`
+- [x] Fallback handlers returning a clear "product/customer service unavailable" business error instead of the order creation hanging or throwing an unhandled exception
+- [x] A deliberately induced failure test: stop `catalog-api` in the test setup, verify the circuit breaker opens after the configured failure threshold and the fallback is used
+- [x] A diagnostics endpoint (or structured log) exposing current circuit breaker state, for parity with the observability this pattern is supposed to provide
 
 ## feature/contract-testing (bonus)
 
@@ -664,10 +664,10 @@ Formalizes the API shape `order-api` depends on, so a breaking change in `catalo
 
 ### Tasks
 
-- [ ] `PactNet` added to `catalog-api` and `customer-api` (the producers) for contract verification
-- [ ] `order-api`'s test suite (the consumer) generates Pact files describing the exact shape it expects from `GET /api/v1/Catalog/Products/{id}` and `GET /api/v1/Customers/{id}`
-- [ ] Each producer's build verifies itself against the consumer-generated pact files, failing CI if its response shape diverges
-- [ ] Document the trade-off honestly: contract testing only replaces the *shape* verification WireMock.Net was doing; it doesn't replace `feature/resilience`'s failure-handling tests, which still need hand-written failure scenarios
+- [x] `PactNet` added to `catalog-api` and `customer-api` (the producers) for contract verification
+- [x] `order-api`'s test suite (the consumer) generates Pact files describing the exact shape it expects from `GET /api/v1/Catalog/Products/{id}` and `GET /api/v1/Customers/{id}`
+- [x] Each producer's build verifies itself against the consumer-generated pact files, failing CI if its response shape diverges
+- [x] Document the trade-off honestly: contract testing only replaces the *shape* verification WireMock.Net was doing; it doesn't replace `feature/resilience`'s failure-handling tests, which still need hand-written failure scenarios
 
 ## Order of work
 

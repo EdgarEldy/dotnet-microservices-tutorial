@@ -9,4 +9,22 @@
     <UserSecretsId>5bc8eb22-8b34-4e67-b601-11c536bbe1c8</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Identity.API\Identity.API.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Kafka" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.Redis" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Catalog.API\Catalog.API.csproj" />
+    <ProjectReference Include="..\Customer.API\Customer.API.csproj" />
+    <ProjectReference Include="..\Order.API\Order.API.csproj" />
+    <ProjectReference Include="..\Notification.Worker\Notification.Worker.csproj" />
+    <ProjectReference Include="..\ApiGateway\ApiGateway.csproj" />
+  </ItemGroup>
+
 </Project>

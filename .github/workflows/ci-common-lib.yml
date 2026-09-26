@@ -1,0 +1,39 @@
+name: CI - common-lib
+
+on:
+  push:
+    branches: [develop, master]
+    paths:
+      - 'src/Common.Lib/**'
+      - 'tests/Common.Lib.Tests/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/ci-common-lib.yml'
+  pull_request:
+    paths:
+      - 'src/Common.Lib/**'
+      - 'tests/Common.Lib.Tests/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/ci-common-lib.yml'
+  # Called by every ci-<service>.yml as a `needs:` job, so a service's CI only
+  # proceeds once Common.Lib itself is known to build and test clean, since every
+  # service compiles against it.
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET (version from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build and test Common.Lib
+        run: dotnet test --project tests/Common.Lib.Tests/Common.Lib.Tests.csproj --configuration Release

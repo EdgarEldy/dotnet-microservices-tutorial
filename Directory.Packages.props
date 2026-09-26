@@ -1,0 +1,75 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <DotnetPackagesVersion>10.0.12</DotnetPackagesVersion>
+    <MicrosoftExtensionsVersion>10.10.0</MicrosoftExtensionsVersion>
+    <AspireVersion>13.5.4</AspireVersion>
+    <!-- EF Core ships with the .NET runtime: same patch as $(DotnetPackagesVersion) -->
+    <EfCoreVersion>10.0.12</EfCoreVersion>
+    <!-- 8.x stays Apache-2.0 (9.x is commercial): never bump the major -->
+    <MassTransitVersion>8.5.10</MassTransitVersion>
+    <TestcontainersVersion>4.15.0</TestcontainersVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Version together with Aspire -->
+    <PackageVersion Include="Aspire.Hosting.Kafka" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(AspireVersion)" />
+    <PackageVersion Include="Aspire.StackExchange.Redis" Version="$(AspireVersion)" />
+    <!-- Version together with the .NET runtime -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(DotnetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="$(DotnetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(DotnetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(DotnetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="$(DotnetPackagesVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="$(DotnetPackagesVersion)" />
+    <!-- EF Core -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(EfCoreVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="$(EfCoreVersion)" />
+    <!-- Transitive pin: Aspire.Npgsql.EntityFrameworkCore.PostgreSQL alone resolves an older patch
+         than Design/Tools, so a project referencing a service would compile against two versions -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(EfCoreVersion)" />
+    <!-- MassTransit -->
+    <PackageVersion Include="MassTransit" Version="$(MassTransitVersion)" />
+    <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="$(MassTransitVersion)" />
+    <PackageVersion Include="MassTransit.Kafka" Version="$(MassTransitVersion)" />
+    <PackageVersion Include="MassTransit.SqlTransport.PostgreSql" Version="$(MassTransitVersion)" />
+    <!-- dotnet/extensions packages -->
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="$(MicrosoftExtensionsVersion)" />
+    <!-- OpenTelemetry -->
+    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.19.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.19.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.19.0" />
+    <!-- Miscellaneous -->
+    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageVersion Include="Mapster" Version="10.0.13" />
+    <PackageVersion Include="Refit.HttpClientFactory" Version="16.1.0" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+    <!-- API gateway: reverse proxy and Redis-backed rate limiting (both MIT) -->
+    <PackageVersion Include="RedisRateLimiting.AspNetCore" Version="1.2.1" />
+    <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
+    <!-- Testing -->
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
+    <PackageVersion Include="Moq" Version="4.21.0" />
+    <!-- Consumer-driven contracts (MIT): consumer pact generation and provider verification -->
+    <PackageVersion Include="PactNet" Version="5.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.Testing" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="$(MicrosoftExtensionsVersion)" />
+    <PackageVersion Include="Testcontainers.Kafka" Version="$(TestcontainersVersion)" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="$(TestcontainersVersion)" />
+    <PackageVersion Include="Testcontainers.Redis" Version="$(TestcontainersVersion)" />
+    <PackageVersion Include="WireMock.Net" Version="2.18.0" />
+  </ItemGroup>
+
+</Project>

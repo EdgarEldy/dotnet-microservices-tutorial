@@ -1,0 +1,178 @@
+{
+  "consumer": {
+    "name": "order-api"
+  },
+  "interactions": [
+    {
+      "description": "a request for a product that does not exist",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "no product with id 999"
+        }
+      ],
+      "request": {
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJIUzI1NiJ9.contract-test.signature"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/api/v1/Catalog/Products/999"
+      },
+      "response": {
+        "headers": {
+          "Content-Type": [
+            "application/problem+json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/problem\\+json(;\\s?charset=utf-8)?$"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for an existing product",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a product with id 1 exists"
+        }
+      ],
+      "request": {
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJIUzI1NiJ9.contract-test.signature"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/api/v1/Catalog/Products/1"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "categoryId": 1,
+            "categoryName": "Beverages",
+            "id": 1,
+            "productName": "Espresso",
+            "unitPrice": 2.5
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.categoryId": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.categoryName": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.productName": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.unitPrice": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "number"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application/json(;\\s?charset=utf-8)?$"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pactRust": {
+      "ffi": "0.4.27",
+      "models": "1.2.8"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "catalog-api"
+  }
+}
